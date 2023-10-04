@@ -117,18 +117,8 @@ pub fn main() !void {
 
     try stderr.print("\nruntime: {d:.3}ms\n", .{seconds * 1000});
 
-    // Run from the directory where the executable is located so relative assets can be found.
-    // var buffer: [1024]u8 = undefined;
-    // const path = std.fs.selfExeDirPath(buffer[0..]) catch ".";
-    // std.os.chdir(path) catch {};
-
-    // var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    // defer _ = gpa.deinit();
-    // core.allocator = gpa.allocator();
-
-    // // Initialize GPU implementation
-    // if (comptime core.options.use_wgpu) try core.wgpu.Impl.init(core.allocator, .{});
-    // if (comptime core.options.use_dgpu) try core.dusk.Impl.init(core.allocator, .{});
+    // Initialize GPU implementation
+    wgpu.Impl.init();
 
     var app: App = undefined;
     try app.init();
@@ -141,8 +131,6 @@ pub const GPUInterface = wgpu.dawn.Interface;
 const App = struct {
     title_timer: core.Timer,
     pipeline: *core.gpu.RenderPipeline,
-
-    // pub const DGPUInterface = core.dusk.Impl;
 
     pub fn init(app: *App) !void {
         try core.init(.{});
