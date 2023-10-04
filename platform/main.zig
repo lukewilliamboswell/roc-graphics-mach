@@ -1,7 +1,7 @@
 const std = @import("std");
 const builtin = @import("builtin");
 
-// const core = @import("mach-core");
+const core = @import("mach-core");
 // const gpu = core.gpu;
 const str = @import("builtins/bitcode/src/glue.zig").str;
 const RocStr = str.RocStr;
@@ -93,18 +93,13 @@ comptime {
     }
 }
 
-const mem = std.mem;
-const Allocator = mem.Allocator;
-
 extern fn roc__mainForHost_1_exposed_generic(*RocStr, *RocStr) void;
 
-const Unit = extern struct {};
-
-pub fn main() u8 {
+pub fn main() !void {
     const stdout = std.io.getStdOut().writer();
     const stderr = std.io.getStdErr().writer();
 
-    var timer = std.time.Timer.start() catch unreachable;
+    var timer = try std.time.Timer.start();
 
     // actually call roc to populate the callresult
     var argument = RocStr.fromSlice("Luke");
@@ -114,134 +109,119 @@ pub fn main() u8 {
     const nanos = timer.read();
     const seconds = (@as(f64, @floatFromInt(nanos)) / 1_000_000_000.0);
 
-    // stdout the result
+    // print the result to stdout
     stdout.print("{s}", .{callresult.asSlice()}) catch unreachable;
 
     callresult.decref();
 
-    stderr.print("\nruntime: {d:.3}ms\n", .{seconds * 1000}) catch unreachable;
+    try stderr.print("\nruntime: {d:.3}ms\n", .{seconds * 1000});
 
-    return 0;
+    // Run from the directory where the executable is located so relative assets can be found.
+    // var buffer: [1024]u8 = undefined;
+    // const path = std.fs.selfExeDirPath(buffer[0..]) catch ".";
+    // std.os.chdir(path) catch {};
+
+    // var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    // defer _ = gpa.deinit();
+    // core.allocator = gpa.allocator();
+
+    // // Initialize GPU implementation
+    // if (comptime core.options.use_wgpu) try core.wgpu.Impl.init(core.allocator, .{});
+    // if (comptime core.options.use_dgpu) try core.dusk.Impl.init(core.allocator, .{});
+
+    // var app: App = undefined;
+    // try app.init();
+    // defer app.deinit();
+    // while (!try core.update(&app)) {}
 }
 
-// // Forward "app" declarations into our namespace, such that @import("root").foo works as expected.
-// // pub usingnamespace @import("app");
-// // const App = @import("app").App;
+const App = struct {
+    title_timer: core.Timer,
+    pipeline: *core.gpu.RenderPipeline,
 
-// // const core = @import("mach-core");
+    // pub const GPUInterface = core.wgpu.dawn.Interface;
+    // pub const DGPUInterface = core.dusk.Impl;
 
-// // pub usingnamespace if (!@hasDecl(App, "GPUInterface")) struct {
-// //     pub const GPUInterface = core.wgpu.dawn.Interface;
-// // } else struct {};
+    pub fn init(app: *App) !void {
+        try core.init(.{});
 
-// // pub usingnamespace if (!@hasDecl(App, "DGPUInterface")) extern struct {
-// //     pub const DGPUInterface = core.dusk.Impl;
-// // } else struct {};
+        const shader_module = core.device.createShaderModuleWGSL("shader.wgsl", @embedFile("shader.wgsl"));
+        defer shader_module.release();
 
-// // pub fn main() !void {
-// //     // Run from the directory where the executable is located so relative assets can be found.
-// //     var buffer: [1024]u8 = undefined;
-// //     const path = std.fs.selfExeDirPath(buffer[0..]) catch ".";
-// //     std.os.chdir(path) catch {};
+        // Fragment state
+        const blend = core.gpu.BlendState{};
+        const color_target = core.gpu.ColorTargetState{
+            .format = core.descriptor.format,
+            .blend = &blend,
+            .write_mask = core.gpu.ColorWriteMaskFlags.all,
+        };
+        const fragment = core.gpu.FragmentState.init(.{
+            .module = shader_module,
+            .entry_point = "frag_main",
+            .targets = &.{color_target},
+        });
+        const pipeline_descriptor = core.gpu.RenderPipeline.Descriptor{
+            .fragment = &fragment,
+            .vertex = core.gpu.VertexState{
+                .module = shader_module,
+                .entry_point = "vertex_main",
+            },
+        };
+        const pipeline = core.device.createRenderPipeline(&pipeline_descriptor);
 
-// //     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-// //     defer _ = gpa.deinit();
-// //     core.allocator = gpa.allocator();
+        app.* = .{ .title_timer = try core.Timer.start(), .pipeline = pipeline };
+    }
 
-// //     // Initialize GPU implementation
-// //     if (comptime core.options.use_wgpu) try core.wgpu.Impl.init(core.allocator, .{});
-// //     if (comptime core.options.use_dgpu) try core.dusk.Impl.init(core.allocator, .{});
+    pub fn deinit(app: *App) void {
+        defer core.deinit();
+        app.pipeline.release();
+    }
 
-// //     var app: App = undefined;
-// //     try app.init();
-// //     defer app.deinit();
-// //     while (!try core.update(&app)) {}
-// // }
+    pub fn update(app: *App) !bool {
+        var iter = core.pollEvents();
+        while (iter.next()) |event| {
+            switch (event) {
+                .close => return true,
+                else => {},
+            }
+        }
 
-// pub const App = @This();
+        const queue = core.queue;
+        const back_buffer_view = core.swap_chain.getCurrentTextureView().?;
+        const color_attachment = core.gpu.RenderPassColorAttachment{
+            .view = back_buffer_view,
+            .clear_value = std.mem.zeroes(core.gpu.Color),
+            .load_op = .clear,
+            .store_op = .store,
+        };
 
-// title_timer: core.Timer,
-// pipeline: *gpu.RenderPipeline,
+        const encoder = core.device.createCommandEncoder(null);
+        const render_pass_info = core.gpu.RenderPassDescriptor.init(.{
+            .color_attachments = &.{color_attachment},
+        });
+        const pass = encoder.beginRenderPass(&render_pass_info);
+        pass.setPipeline(app.pipeline);
+        pass.draw(3, 1, 0, 0);
+        pass.end();
+        pass.release();
 
-// pub fn init(app: *App) !void {
-//     try core.init(.{});
+        var command = encoder.finish(null);
+        encoder.release();
 
-//     const shader_module = core.device.createShaderModuleWGSL("shader.wgsl", @embedFile("shader.wgsl"));
-//     defer shader_module.release();
+        queue.submit(&[_]*core.gpu.CommandBuffer{command});
+        command.release();
+        core.swap_chain.present();
+        back_buffer_view.release();
 
-//     // Fragment state
-//     const blend = gpu.BlendState{};
-//     const color_target = gpu.ColorTargetState{
-//         .format = core.descriptor.format,
-//         .blend = &blend,
-//         .write_mask = gpu.ColorWriteMaskFlags.all,
-//     };
-//     const fragment = gpu.FragmentState.init(.{
-//         .module = shader_module,
-//         .entry_point = "frag_main",
-//         .targets = &.{color_target},
-//     });
-//     const pipeline_descriptor = gpu.RenderPipeline.Descriptor{
-//         .fragment = &fragment,
-//         .vertex = gpu.VertexState{
-//             .module = shader_module,
-//             .entry_point = "vertex_main",
-//         },
-//     };
-//     const pipeline = core.device.createRenderPipeline(&pipeline_descriptor);
+        // update the window title every second
+        if (app.title_timer.read() >= 1.0) {
+            app.title_timer.reset();
+            try core.printTitle("Triangle [ {d}fps ] [ Input {d}hz ]", .{
+                core.frameRate(),
+                core.inputRate(),
+            });
+        }
 
-//     app.* = .{ .title_timer = try core.Timer.start(), .pipeline = pipeline };
-// }
-
-// pub fn deinit(app: *App) void {
-//     defer core.deinit();
-//     app.pipeline.release();
-// }
-
-// pub fn update(app: *App) !bool {
-//     var iter = core.pollEvents();
-//     while (iter.next()) |event| {
-//         switch (event) {
-//             .close => return true,
-//             else => {},
-//         }
-//     }
-
-//     const queue = core.queue;
-//     const back_buffer_view = core.swap_chain.getCurrentTextureView().?;
-//     const color_attachment = gpu.RenderPassColorAttachment{
-//         .view = back_buffer_view,
-//         .clear_value = std.mem.zeroes(gpu.Color),
-//         .load_op = .clear,
-//         .store_op = .store,
-//     };
-
-//     const encoder = core.device.createCommandEncoder(null);
-//     const render_pass_info = gpu.RenderPassDescriptor.init(.{
-//         .color_attachments = &.{color_attachment},
-//     });
-//     const pass = encoder.beginRenderPass(&render_pass_info);
-//     pass.setPipeline(app.pipeline);
-//     pass.draw(3, 1, 0, 0);
-//     pass.end();
-//     pass.release();
-
-//     var command = encoder.finish(null);
-//     encoder.release();
-
-//     queue.submit(&[_]*gpu.CommandBuffer{command});
-//     command.release();
-//     core.swap_chain.present();
-//     back_buffer_view.release();
-
-//     // update the window title every second
-//     if (app.title_timer.read() >= 1.0) {
-//         app.title_timer.reset();
-//         try core.printTitle("Triangle [ {d}fps ] [ Input {d}hz ]", .{
-//             core.frameRate(),
-//             core.inputRate(),
-//         });
-//     }
-
-//     return false;
-// }
+        return false;
+    }
+};

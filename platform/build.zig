@@ -5,12 +5,17 @@ pub fn build(b: *std.Build) !void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
+    // Build a static library for Roc to link with
     const lib = b.addStaticLibrary(.{
         .name = "host",
         .root_source_file = .{ .path = "main.zig" },
         .target = target,
         .optimize = optimize,
     });
+
+    // Add mach-core as a dependency
+    // const mach_core_dep = b.dependency("mach_core", .{});
+    // lib.addModule("mach-core", mach_core_dep.module("mach-core"));
 
     b.installArtifact(lib);
 
