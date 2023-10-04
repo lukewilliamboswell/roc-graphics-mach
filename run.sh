@@ -1,0 +1,1 @@
+ roc run --prebuilt-platform examples/rocLovesZig.roc

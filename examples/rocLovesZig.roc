@@ -3,4 +3,5 @@ app "rocLovesZig"
     imports []
     provides [main] to pf
 
-main = "Roc <3 Zig!\n"
+main : Str -> Str
+main = \str -> "Hi, \(str)!!"

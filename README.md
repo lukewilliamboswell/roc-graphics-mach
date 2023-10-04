@@ -3,13 +3,15 @@
 
 An experiment to combine mach graphics and Roc lang.
 
-## Instructions 
+## Setup 
 
 Link to the roc builtins
 `ln -s /Users/luke/Documents/GitHub/roc/crates/compiler/builtins ./builtins`
 
-Build roc app with from Roc repository
-`cargo run -- ../roc-graphics-mach/examples/rocLovesZig.roc`
+## Build prebuild-platform
 
-Build macho app with 
-`zig build run` 
+`bash build.sh`
+
+## Run example
+
+`bash run.sh`

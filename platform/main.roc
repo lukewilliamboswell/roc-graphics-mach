@@ -2,8 +2,8 @@ platform "echo-in-zig"
     requires {} { main : Str -> Str }
     exposes []
     packages {}
-    imports []
+    imports [TotallyNotJson]
     provides [mainForHost]
 
 mainForHost : Str -> Str
-mainForHost = \_ -> "out"
+mainForHost = \str -> main str
