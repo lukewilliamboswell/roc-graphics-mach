@@ -89,32 +89,66 @@ comptime {
     }
 }
 
-const mem = std.mem;
-const Allocator = mem.Allocator;
+// const mem = std.mem;
+// const Allocator = mem.Allocator;
 
-extern fn roc__mainForHost_1_exposed_generic(*RocStr) void;
+// extern fn roc__mainForHost_1_exposed_generic(*RocStr, *RocStr) void;
 
-const Unit = extern struct {};
+// const Unit = extern struct {};
 
-pub fn main() u8 {
-    const stdout = std.io.getStdOut().writer();
-    const stderr = std.io.getStdErr().writer();
+// pub fn main() u8 {
+//     const stdout = std.io.getStdOut().writer();
+//     const stderr = std.io.getStdErr().writer();
 
-    var timer = std.time.Timer.start() catch unreachable;
+//     var timer = std.time.Timer.start() catch unreachable;
 
-    // actually call roc to populate the callresult
-    var callresult = RocStr.empty();
-    roc__mainForHost_1_exposed_generic(&callresult);
+//     // actually call roc to populate the callresult
+//     var callresult = RocStr.empty();
+//     roc__mainForHost_1_exposed_generic(&callresult);
 
-    const nanos = timer.read();
-    const seconds = (@as(f64, @floatFromInt(nanos)) / 1_000_000_000.0);
+//     const nanos = timer.read();
+//     const seconds = (@as(f64, @floatFromInt(nanos)) / 1_000_000_000.0);
 
-    // stdout the result
-    stdout.print("{s}", .{callresult.asSlice()}) catch unreachable;
+//     // stdout the result
+//     stdout.print("{s}", .{callresult.asSlice()}) catch unreachable;
 
-    callresult.decref();
+//     callresult.decref();
 
-    stderr.print("runtime: {d:.3}ms\n", .{seconds * 1000}) catch unreachable;
+//     stderr.print("runtime: {d:.3}ms\n", .{seconds * 1000}) catch unreachable;
 
-    return 0;
+//     return 0;
+// }
+
+// Forward "app" declarations into our namespace, such that @import("root").foo works as expected.
+pub usingnamespace @import("app");
+const App = @import("app").App;
+
+const core = @import("mach-core");
+
+pub usingnamespace if (!@hasDecl(App, "GPUInterface")) struct {
+    pub const GPUInterface = core.wgpu.dawn.Interface;
+} else struct {};
+
+pub usingnamespace if (!@hasDecl(App, "DGPUInterface")) extern struct {
+    pub const DGPUInterface = core.dusk.Impl;
+} else struct {};
+
+pub fn main() !void {
+    // Run from the directory where the executable is located so relative assets can be found.
+    var buffer: [1024]u8 = undefined;
+    const path = std.fs.selfExeDirPath(buffer[0..]) catch ".";
+    std.os.chdir(path) catch {};
+
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    core.allocator = gpa.allocator();
+
+    // Initialize GPU implementation
+    if (comptime core.options.use_wgpu) try core.wgpu.Impl.init(core.allocator, .{});
+    if (comptime core.options.use_dgpu) try core.dusk.Impl.init(core.allocator, .{});
+
+    var app: App = undefined;
+    try app.init();
+    defer app.deinit();
+    while (!try core.update(&app)) {}
 }

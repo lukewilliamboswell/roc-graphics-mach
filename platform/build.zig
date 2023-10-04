@@ -16,16 +16,22 @@ pub fn build(b: *std.Build) !void {
     // set a preferred release mode, allowing the user to decide how to optimize.
     const optimize = b.standardOptimizeOption(.{});
 
-    const mach_core_dep = b.dependency("mach_core", .{
-        .target = target,
-        .optimize = optimize,
-    });
-    const app = try mach_core.App.init(b, mach_core_dep.builder, .{
+    const dependencies = &[_]std.build.ModuleDependency{
+        .{ .name = "mach-core", .module = b.dependency("mach_core", .{
+            .target = target,
+            .optimize = optimize,
+        }).module("mach-core") },
+    };
+
+    const app = try mach_core.App.init(b, .{
         .name = "myapp",
         .src = "main.zig",
         .target = target,
         .optimize = optimize,
-        .deps = &[_]std.build.ModuleDependency{},
+        .deps = dependencies,
+
+        // Adding a custom entrypoint instead of the mach native platform
+        .custom_entrypoint = "host.zig",
     });
     if (b.args) |args| app.run.addArgs(args);
 
