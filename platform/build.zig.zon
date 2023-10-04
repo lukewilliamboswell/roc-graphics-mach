@@ -2,9 +2,20 @@
     .name = "myproject",
     .version = "0.1.0",
     .dependencies = .{
+
+        // from https://github.com/hexops/mach-core-starter-project/blob/main/build.zig.zon
         .mach_core = .{
-            .url = "https://pkg.machengine.org/mach-core/357370b30f76aadc8a9abbedd6947d4c61293982.tar.gz",
-            .hash = "1220c2fd86c755fde7f379e0d98cb04f9191142e9b468ad4c34d7dee2c5c8fa8a48a",
+            .url = "https://pkg.machengine.org/mach-core/d2b382d9698fc621d912ba1c693fe484d8e2178a.tar.gz",
+            .hash = "1220c90fcb6a12a9659f4971e12ec53db017eb082abd3ebf4d1b8f703412c84228ae",
+        },
+
+        // .mach_core = .{
+        //     .url = "https://pkg.machengine.org/mach-core/357370b30f76aadc8a9abbedd6947d4c61293982.tar.gz",
+        //     .hash = "1220c2fd86c755fde7f379e0d98cb04f9191142e9b468ad4c34d7dee2c5c8fa8a48a",
+        // },
+        .mach_dusk = .{
+            .url = "https://pkg.machengine.org/mach-dusk/77fff1264dffabe5d5187483dab04b8d3710d71b.tar.gz",
+            .hash = "1220e6ad3df209a470b920fd0e8e30ebc1f83028a8a433055fedaad4bf73b31c2464",
         },
         .mach_core_example_assets = .{
             .url = "https://pkg.machengine.org/mach-core-example-assets/46141fa81652c88a4bc6dd3af42ee70e3a8e00ff.tar.gz",

@@ -1,4 +1,6 @@
 const std = @import("std");
+const glfw = @import("mach_glfw");
+const gpu = @import("mach_gpu");
 
 var _module: ?*std.build.Module = null;
 
@@ -6,7 +8,6 @@ pub fn build(b: *std.Build) !void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    // Build a static library for Roc to link with
     const lib = b.addStaticLibrary(.{
         .name = "host",
         .root_source_file = .{ .path = "main.zig" },
@@ -14,28 +15,27 @@ pub fn build(b: *std.Build) !void {
         .optimize = optimize,
     });
 
-    // Dependencies
     const mach_core_dep = b.dependency("mach_core", .{
         .target = target,
         .optimize = optimize,
     });
+
+    const mach_core_builder = mach_core_dep.builder;
+
+    try glfw.link(mach_core_builder.dependency("mach_glfw", .{
+        .target = target,
+        .optimize = optimize,
+    }).builder, lib);
+
+    const mach_gpu_dep = mach_core_builder.dependency("mach_gpu", .{
+        .target = target,
+        .optimize = optimize,
+    });
+
+    try gpu.link(mach_gpu_dep.builder, lib, .{});
+
     lib.addModule("mach-core", mach_core_dep.module("mach-core"));
-    lib.linkLibrary(mach_core_dep.artifact("mach-core"));
-
-    lib.addModule("mach-glfw", b.dependency("mach_glfw", .{
-        .target = target,
-        .optimize = optimize,
-    }).module("mach-glfw"));
-
-    lib.addModule("gamemode", b.dependency("mach_gamemode", .{
-        .target = target,
-        .optimize = optimize,
-    }).module("mach-gamemode"));
-
-    lib.addModule("mach-gpu", b.dependency("mach_gpu", .{
-        .target = target,
-        .optimize = optimize,
-    }).module("mach-gpu"));
+    lib.addModule("mach-gpu", mach_gpu_dep.module("mach-gpu"));
 
     b.installArtifact(lib);
 

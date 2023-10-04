@@ -2,6 +2,7 @@ const std = @import("std");
 const builtin = @import("builtin");
 
 const core = @import("mach-core");
+const wgpu = @import("mach-gpu");
 // const gpu = core.gpu;
 const str = @import("builtins/bitcode/src/glue.zig").str;
 const RocStr = str.RocStr;
@@ -135,11 +136,12 @@ pub fn main() !void {
     // while (!try core.update(&app)) {}
 }
 
+pub const GPUInterface = wgpu.dawn.Interface;
+
 const App = struct {
     title_timer: core.Timer,
     pipeline: *core.gpu.RenderPipeline,
 
-    // pub const GPUInterface = core.wgpu.dawn.Interface;
     // pub const DGPUInterface = core.dusk.Impl;
 
     pub fn init(app: *App) !void {
