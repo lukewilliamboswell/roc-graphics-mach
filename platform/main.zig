@@ -129,9 +129,9 @@ pub fn main() !void {
     // if (comptime core.options.use_wgpu) try core.wgpu.Impl.init(core.allocator, .{});
     // if (comptime core.options.use_dgpu) try core.dusk.Impl.init(core.allocator, .{});
 
-    // var app: App = undefined;
-    // try app.init();
-    // defer app.deinit();
+    var app: App = undefined;
+    try app.init();
+    defer app.deinit();
     // while (!try core.update(&app)) {}
 }
 
