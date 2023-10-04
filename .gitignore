@@ -1,0 +1,7 @@
+platform/zig-out
+platform/zig-cache
+platform/builtins
+
+*.o
+
+examples/rocLovesZig
