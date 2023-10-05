@@ -1,0 +1,10 @@
+.{
+    .name = "myproject",
+    .version = "0.1.0",
+    .dependencies = .{
+        .mach_core = .{
+            .url = "https://github.com/lukewilliamboswell/mach-core/archive/refs/tags/roc-fd6694c.tar.gz",
+            .hash = "12207e3360c8af2937ca9940117c50ee7160737ad0c71cf236cfede5796466410d08",
+        },
+    },
+}

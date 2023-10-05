@@ -1,17 +1,13 @@
 
 # Roc-Mach Graphics
 
-An experiment to combine mach graphics and Roc lang.
+An experiment to combine mach graphics and Roc lang
 
 ## Setup 
 
 Link to the roc builtins
-`ln -s /Users/luke/Documents/GitHub/roc/crates/compiler/builtins ./builtins`
+`ln -s /REPLACE-WITH-PATH-TO-ROC/crates/compiler/builtins ./platform/src/builtins`
 
-## Build prebuild-platform
+## Build and run example
 
 `bash build.sh`
-
-## Run example
-
-`bash run.sh`

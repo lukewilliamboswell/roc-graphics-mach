@@ -1,7 +1,8 @@
-platform/zig-out
-platform/zig-cache
-platform/builtins
+zig-out
+zig-cache
+platform/src/builtins
 
 *.o
+*.dylib
 
 examples/rocLovesZig
