@@ -87,21 +87,38 @@ pub fn init(app: *App) !void {
         .min_filter = .linear,
     });
 
-    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
-    const head_arena_allocator = arena.allocator();
-
-    // PARSE TEXT
-    var intermediary_tvg = std.ArrayList(u8).init(head_arena_allocator);
+    // PARSE TVG
+    var intermediary_tvg = std.ArrayList(u8).init(allocator);
     defer intermediary_tvg.deinit();
-    try tvg.text.parse(head_arena_allocator, shield8, intermediary_tvg.writer());
+    try tvg.text.parse(allocator, shield8, intermediary_tvg.writer());
 
-    // PARSE BINARY
+    // REDNER TVG
     var stream = std.io.fixedBufferStream(intermediary_tvg.items);
-    var parser = try tvg.parse(head_arena_allocator, stream.reader());
-    defer parser.deinit();
+    var image = try tvg.rendering.renderStream(
+        allocator,
+        allocator,
+        .inherit,
+        @enumFromInt(1),
+        stream.reader(),
+    );
+    defer image.deinit(allocator);
 
-    // RENDER BINARY
-    try tvg.svg.renderStream(head_arena_allocator, &parser, std.io.getStdOut().writer());
+    // pub const Color8 = extern struct { r: u8, g: u8, b: u8, a: u8 };
+    // pub const Image = struct {
+    //     width: u32,
+    //     height: u32,
+    //     pixels: []Color8,
+
+    //     pub fn deinit(self: *Image, allocator: std.mem.Allocator) void {
+    //         allocator.free(self.pixels);
+    //         self.* = undefined;
+    //     }
+    // };
+
+    std.debug.print("{any} {any} \n\n {any}", .{ image.width, image.height, image.pixels });
+
+    // var framebuffer: Framebuffer = undefined;
+    // try tvg.renderStream(head_arena_allocator, framebuffer, parser);
 
     /////////////////////////////////////////
 
@@ -312,3 +329,73 @@ fn rgb24ToRgba32(allocator: std.mem.Allocator, in: []zigimg.color.Rgb24) !zigimg
     }
     return out;
 }
+
+const Framebuffer = struct {
+    const Self = @This();
+    const gamma = 2.2;
+
+    // private API
+
+    slice: []tvg.Color,
+    stride: usize,
+
+    // public API
+    width: usize,
+    height: usize,
+
+    pub fn setPixel(self: *const Self, x: isize, y: isize, src_color: tvg.Color) void {
+        if (x < 0 or y < 0)
+            return;
+        if (x >= self.width or y >= self.height)
+            return;
+        const offset = (std.math.cast(usize, y) orelse return) * self.stride + (std.math.cast(usize, x) orelse return);
+
+        const destination_pixel = &self.slice[offset];
+
+        const dst_color = destination_pixel.*;
+
+        if (src_color.a == 0) {
+            return;
+        }
+        if (src_color.a == 255) {
+            destination_pixel.* = src_color;
+            return;
+        }
+
+        // src over dst
+        //   a over b
+
+        const src_alpha = src_color.a;
+        const dst_alpha = dst_color.a;
+
+        const fin_alpha = src_alpha + (1.0 - src_alpha) * dst_alpha;
+
+        destination_pixel.* = tvg.Color{
+            .r = lerpColor(src_color.r, dst_color.r, src_alpha, dst_alpha, fin_alpha),
+            .g = lerpColor(src_color.g, dst_color.g, src_alpha, dst_alpha, fin_alpha),
+            .b = lerpColor(src_color.b, dst_color.b, src_alpha, dst_alpha, fin_alpha),
+            .a = fin_alpha,
+        };
+    }
+
+    fn lerpColor(src: f32, dst: f32, src_alpha: f32, dst_alpha: f32, fin_alpha: f32) f32 {
+        const src_val = mapToLinear(src);
+        const dst_val = mapToLinear(dst);
+
+        const value = (1.0 / fin_alpha) * (src_alpha * src_val + (1.0 - src_alpha) * dst_alpha * dst_val);
+
+        return mapToGamma(value);
+    }
+
+    fn mapToLinear(val: f32) f32 {
+        return std.math.pow(f32, val, gamma);
+    }
+
+    fn mapToGamma(val: f32) f32 {
+        return std.math.pow(f32, val, 1.0 / gamma);
+    }
+
+    fn mapToGamma8(val: f32) u8 {
+        return @intFromFloat(255.0 * mapToGamma(val));
+    }
+};
