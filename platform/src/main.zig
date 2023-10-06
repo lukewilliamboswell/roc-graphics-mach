@@ -2,7 +2,7 @@ const std = @import("std");
 const core = @import("mach-core");
 const tvg = @import("tinyvg");
 const zigimg = @import("zigimg");
-const shield8 = @embedFile("shield8.tvgt");
+const tvgt_bytes = @embedFile("everything32.tvgt");
 
 title_timer: core.Timer,
 fullscreen_quad_pipeline: *core.gpu.RenderPipeline,
@@ -30,17 +30,18 @@ pub fn init(app: *App) !void {
     // Parse TVG text bytes
     var intermediary_tvg = std.ArrayList(u8).init(allocator);
     defer intermediary_tvg.deinit();
-    try tvg.text.parse(allocator, shield8, intermediary_tvg.writer());
+    try tvg.text.parse(allocator, tvgt_bytes, intermediary_tvg.writer());
 
     // Render TVG into an image
     var stream = std.io.fixedBufferStream(intermediary_tvg.items);
     var image = try tvg.rendering.renderStream(
         allocator,
         allocator,
-        // .inherit,
-        // Can also specify a size here...
-        tvg.rendering.SizeHint{ .size = tvg.rendering.Size{ .width = 240, .height = 240 } },
+        .inherit,
+        // ^^ Can also specify a size here...
+        // tvg.rendering.SizeHint{ .size = tvg.rendering.Size{ .width = 240, .height = 240 } },
         .x1,
+        // ^^ Can specify other anti aliasing modes .x4, .x9, .x16, .x25
         stream.reader(),
     );
     defer image.deinit(allocator);
