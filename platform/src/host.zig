@@ -102,13 +102,25 @@ extern fn roc__mainForHost_1_exposed_generic(*RocStr, *RocStr) void;
 
 const Unit = extern struct {};
 
+const AppInitOptions = struct {
+    displayMode: []const u8, // 20 windowed, 21 fullscreen, 22 borderless
+    border: bool = true,
+    title: []const u8,
+    width: u32 = 800,
+    height: u32 = 600,
+};
+
 pub fn main() !void {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    core.allocator = gpa.allocator();
+
     const stdout = std.io.getStdOut().writer();
     _ = stdout;
     const stderr = std.io.getStdErr().writer();
     _ = stderr;
 
-    var timer = std.time.Timer.start() catch unreachable;
+    // var timer = std.time.Timer.start() catch unreachable;
 
     // actually call roc to populate the callresult
     var argument = RocStr.fromSlice("Luke");
@@ -117,9 +129,27 @@ pub fn main() !void {
 
     roc__mainForHost_1_exposed_generic(&callresult, &argument);
 
-    const nanos = timer.read();
-    const seconds = (@as(f64, @floatFromInt(nanos)) / 1_000_000_000.0);
-    _ = seconds;
+    // DEBUG PRINT ROC CALL RESULT
+    // try stdout.print("ROC GIVES-----\n{s}\n--------\n", .{callresult.asSlice()});
+
+    const parsedData = try std.json.parseFromSlice(AppInitOptions, core.allocator, callresult.asSlice(), .{});
+    defer parsedData.deinit();
+
+    // DEBUG PRINT PARSED DATA
+    // try stdout.print("JSON PARSED------\n{any}\n--------\n", .{parsedData.value});
+
+    // Display mode
+    var display_mode: core.DisplayMode =
+        if (mem.eql(u8, parsedData.value.displayMode, "borderless"))
+        core.DisplayMode.borderless
+    else if (mem.eql(u8, parsedData.value.displayMode, "fullscreen"))
+        core.DisplayMode.fullscreen
+    else
+        core.DisplayMode.windowed;
+
+    // const nanos = timer.read();
+    // const seconds = (@as(f64, @floatFromInt(nanos)) / 1_000_000_000.0);
+    // _ = seconds;
 
     // DEBUG print the result
     // try stdout.print("{s}", .{callresult.asSlice()});
@@ -135,24 +165,38 @@ pub fn main() !void {
     // Initialize GPU implementation
     core.gpu.Impl.init();
 
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer _ = gpa.deinit();
-    core.allocator = gpa.allocator();
-
     // Use the result from Roc as the shader code
     // const shader: [*:0]const u8 = try addNullTermination(callresult.asSlice());
 
+    // pub const Options = struct {
+    //     is_app: bool = false,
+    //     headless: bool = false,
+    //     display_mode: DisplayMode = .windowed,
+    //     border: bool = true,
+    //     title: [:0]const u8 = "Mach core",
+    //     size: Size = .{ .width = 1920 / 2, .height = 1080 / 2 },
+    //     power_preference: gpu.PowerPreference = .undefined,
+    //     required_features: ?[]const gpu.FeatureName = null,
+    //     required_limits: ?gpu.Limits = null,
+    // };
+    const options = core.Options{
+        .display_mode = display_mode,
+        .border = parsedData.value.border,
+        .title = try addNullTermination(parsedData.value.title),
+        .size = core.Size{ .width = parsedData.value.width, .height = parsedData.value.height },
+    };
+
     var app: App = undefined;
-    try app.init();
+    try app.init(options);
     defer app.deinit();
     while (!try core.update(&app)) {}
 }
 
-fn addNullTermination(slice: []const u8) ![*:0]const u8 {
+fn addNullTermination(slice: []const u8) ![:0]const u8 {
     var allocator = std.heap.page_allocator;
     var size = slice.len + 1;
     var result = try allocator.alloc(u8, size);
     @memcpy(result.ptr, slice);
     result[slice.len] = 0; // Add null termination
-    return @ptrCast(&result[0]);
+    return result[0..slice.len :0];
 }

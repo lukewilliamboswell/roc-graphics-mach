@@ -1,9 +1,9 @@
-platform "echo-in-zig"
+platform "roc-graphics"
     requires {} { main : Str -> Str }
     exposes []
     packages {}
-    imports [TotallyNotJson]
+    imports []
     provides [mainForHost]
 
 mainForHost : Str -> Str
-mainForHost = \str -> main str
+mainForHost = \fromHost -> main fromHost

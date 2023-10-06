@@ -2,7 +2,7 @@ const std = @import("std");
 const core = @import("mach-core");
 const tvg = @import("tinyvg");
 const zigimg = @import("zigimg");
-const tvgt_bytes = @embedFile("everything32.tvgt");
+const tvgt_bytes = @embedFile("shield8.tvgt");
 
 title_timer: core.Timer,
 fullscreen_quad_pipeline: *core.gpu.RenderPipeline,
@@ -23,8 +23,8 @@ const iterations: u32 = 2;
 var block_dimension: u32 = tile_dimension - (filter_size - 1);
 var gpa = std.heap.GeneralPurposeAllocator(.{}){};
 
-pub fn init(app: *App) !void {
-    try core.init(.{});
+pub fn init(app: *App, options: core.Options) !void {
+    try core.init(options);
     const allocator = gpa.allocator();
 
     // Parse TVG text bytes
@@ -131,7 +131,29 @@ pub fn update(app: *App) !bool {
     // HANDLE EVENTS
     var iter = core.pollEvents();
     while (iter.next()) |event| {
-        if (event == .close) return true;
+        switch (event) {
+            .key_press => |ev| {
+                switch (ev.key) {
+                    .space => return true,
+                    // .left => app.direction[0] += 1,
+                    // .right => app.direction[0] -= 1,
+                    // .up => app.direction[1] += 1,
+                    // .down => app.direction[1] -= 1,
+                    else => {},
+                }
+            },
+            .key_release => |ev| {
+                switch (ev.key) {
+                    // .left => app.direction[0] -= 1,
+                    // .right => app.direction[0] += 1,
+                    // .up => app.direction[1] -= 1,
+                    // .down => app.direction[1] += 1,
+                    else => {},
+                }
+            },
+            .close => return true,
+            else => {},
+        }
     }
 
     const back_buffer_view = core.swap_chain.getCurrentTextureView().?;
@@ -164,7 +186,11 @@ pub fn update(app: *App) !bool {
     // update the window title every second
     if (app.title_timer.read() >= 1.0) {
         app.title_timer.reset();
-        try core.printTitle("Image Blur [ {d}fps ] [ Input {d}hz ]", .{
+        // try core.printTitle("[ {d}fps ] [ Input {d}hz ]", .{
+        //     core.frameRate(),
+        //     core.inputRate(),
+        // });
+        std.debug.print("[ {d}fps ] [ Input {d}hz ]\n", .{
             core.frameRate(),
             core.inputRate(),
         });

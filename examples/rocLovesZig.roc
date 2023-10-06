@@ -1,29 +1,37 @@
 app "rocLovesZig"
-    packages { pf: "../platform/main.roc" }
-    imports []
+    packages { 
+        pf: "../platform/main.roc",
+        json: "https://github.com/lukewilliamboswell/roc-json/releases/download/v0.3.0/y2bZ-J_3aq28q0NpZPjw0NC6wghUYFooJpH03XzJ3Ls.tar.br",
+    }
+    imports [
+        json.Core.{json},
+        Encode,
+    ]
     provides [main] to pf
 
-main : Str -> Str
-main = \_ ->
+main = \_ -> 
+    Encode.toBytes init json |> Str.fromUtf8 |> Result.withDefault "UTF8 ERROR"
+
+Init : {
+    displayMode : Str, # "borderless" | "windowed" | "fullscreen"
+    border: Bool,
+    title: Str,
+    width: U32,
+    height: U32,
+}
+
+init : Init
+init = {
+    displayMode: "windowed",
+    border: Bool.true,
+    title: "Roc Loves Graphics",
+    width: 800,
+    height: 600,
+}
+
+# render : Str
+# render = "RENDER"
+
+
     
-    # Let's pick the color of our triangle! Yay!!
-    red = Num.toStr (130/255)
-    green = Num.toStr (87/255)
-    blue = Num.toStr (229/255)
-
-    """
-    @vertex fn vertex_main(
-        @builtin(vertex_index) VertexIndex : u32
-    ) -> @builtin(position) vec4<f32> {
-        var pos = array<vec2<f32>, 3>(
-            vec2<f32>( 0.0,  0.5),
-            vec2<f32>(-0.5, -0.5),
-            vec2<f32>( 0.5, -0.5)
-        );
-        return vec4<f32>(pos[VertexIndex], 0.0, 1.0);
-    }
-
-    @fragment fn frag_main() -> @location(0) vec4<f32> {
-        return vec4<f32>(\(red), \(green), \(blue), 1.0);
-    }
-    """
+    
