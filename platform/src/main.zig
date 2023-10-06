@@ -98,6 +98,7 @@ pub fn init(app: *App) !void {
         allocator,
         allocator,
         .inherit,
+        // tvg.rendering.SizeHint{ .size = tvg.rendering.Size{ .width = 240, .height = 240 } },
         @enumFromInt(1),
         stream.reader(),
     );
@@ -115,17 +116,17 @@ pub fn init(app: *App) !void {
     //     }
     // };
 
-    std.debug.print("{any} {any} \n\n {any}", .{ image.width, image.height, image.pixels });
+    std.debug.print("{any} {any} {any}", .{ image.width, image.height, image.pixels.len });
 
     // var framebuffer: Framebuffer = undefined;
     // try tvg.renderStream(head_arena_allocator, framebuffer, parser);
 
     /////////////////////////////////////////
 
-    var img = try zigimg.Image.fromMemory(allocator, gotta_go_fast_png);
-    defer img.deinit();
+    // var img = try zigimg.Image.fromMemory(allocator, gotta_go_fast_png);
+    // defer img.deinit();
 
-    const img_size = gpu.Extent3D{ .width = @as(u32, @intCast(img.width)), .height = @as(u32, @intCast(img.height)) };
+    const img_size = gpu.Extent3D{ .width = @as(u32, @intCast(image.width)), .height = @as(u32, @intCast(image.height)) };
 
     const cube_texture = core.device.createTexture(&.{
         .size = img_size,
@@ -138,19 +139,23 @@ pub fn init(app: *App) !void {
     });
 
     const data_layout = gpu.Texture.DataLayout{
-        .bytes_per_row = @as(u32, @intCast(img.width * 4)),
-        .rows_per_image = @as(u32, @intCast(img.height)),
+        .bytes_per_row = @as(u32, @intCast(image.width * 4)),
+        .rows_per_image = @as(u32, @intCast(image.height)),
     };
 
-    switch (img.pixels) {
-        .rgba32 => |pixels| queue.writeTexture(&.{ .texture = cube_texture }, &data_layout, &img_size, pixels),
-        .rgb24 => |pixels| {
-            const data = try rgb24ToRgba32(allocator, pixels);
-            defer data.deinit(allocator);
-            queue.writeTexture(&.{ .texture = cube_texture }, &data_layout, &img_size, data.rgba32);
-        },
-        else => @panic("unsupported image color format"),
-    }
+    // const pixels = try color8ToRgba32(allocator, image.pixels);
+    // defer pixels.deinit(allocator);
+    queue.writeTexture(&.{ .texture = cube_texture }, &data_layout, &img_size, image.pixels);
+
+    // switch (img.pixels) {
+    //     .rgba32 => |pixels| queue.writeTexture(&.{ .texture = cube_texture }, &data_layout, &img_size, pixels),
+    //     .rgb24 => |pixels| {
+    //         const data = try rgb24ToRgba32(allocator, pixels);
+    //         defer data.deinit(allocator);
+    //         queue.writeTexture(&.{ .texture = cube_texture }, &data_layout, &img_size, data.rgba32);
+    //     },
+    //     else => @panic("unsupported image color format"),
+    // }
 
     var textures: [2]*gpu.Texture = undefined;
     for (textures, 0..) |_, i| {
@@ -326,6 +331,17 @@ fn rgb24ToRgba32(allocator: std.mem.Allocator, in: []zigimg.color.Rgb24) !zigimg
     var i: usize = 0;
     while (i < in.len) : (i += 1) {
         out.rgba32[i] = zigimg.color.Rgba32{ .r = in[i].r, .g = in[i].g, .b = in[i].b, .a = 255 };
+    }
+    return out;
+}
+
+fn color8ToRgba32(allocator: std.mem.Allocator, in: []tvg.rendering.Color8) !zigimg.color.PixelStorage {
+    // pub const Color8 = extern struct { r: u8, g: u8, b: u8, a: u8 };
+    const out = try zigimg.color.PixelStorage.init(allocator, .rgba32, in.len);
+    var i: usize = 0;
+    while (i < in.len) : (i += 1) {
+        // out.rgba32[i] = zigimg.color.Rgba32{ .r = in[i].r, .g = in[i].g, .b = in[i].b, .a = in[i].a };
+        out.rgba32[i] = zigimg.color.Rgba32{ .r = 255, .g = 0, .b = 0, .a = 1 };
     }
     return out;
 }
