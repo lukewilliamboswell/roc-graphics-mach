@@ -10,12 +10,25 @@ pub fn build(b: *std.Build) !void {
         .optimize = optimize,
     });
 
+    const tinyvg_sdk_dep = b.dependency("tinyvg_sdk", .{
+        .target = target,
+        .optimize = optimize,
+    }).module("tvg");
+
+    const zig_img_dep = b.dependency("zig_img", .{
+        .target = target,
+        .optimize = optimize,
+    }).module("zigimg");
+
     const app = try mach_core.App.init(b, mach_core_dep.builder, .{
         .name = "myapp",
         .src = "platform/src/main.zig",
         .target = target,
         .optimize = optimize,
-        .deps = &[_]std.build.ModuleDependency{},
+        .deps = &[_]std.build.ModuleDependency{
+            .{ .name = "tinyvg", .module = tinyvg_sdk_dep },
+            .{ .name = "zigimg", .module = zig_img_dep },
+        },
         .custom_entrypoint = "platform/src/host.zig",
         .roc_app_dylib_path = "rocLovesZig.dylib",
     });

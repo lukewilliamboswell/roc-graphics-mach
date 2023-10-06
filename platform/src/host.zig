@@ -140,10 +140,10 @@ pub fn main() !void {
     core.allocator = gpa.allocator();
 
     // Use the result from Roc as the shader code
-    const shader: [*:0]const u8 = try addNullTermination(callresult.asSlice());
+    // const shader: [*:0]const u8 = try addNullTermination(callresult.asSlice());
 
     var app: App = undefined;
-    try app.init(shader);
+    try app.init();
     defer app.deinit();
     while (!try core.update(&app)) {}
 }
