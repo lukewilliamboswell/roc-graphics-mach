@@ -2,23 +2,14 @@ const std = @import("std");
 const core = @import("mach-core");
 const tvg = @import("tinyvg");
 const zigimg = @import("zigimg");
-const gpu = core.gpu;
-const gotta_go_fast_png = @embedFile("gotta-go-fast.png");
-
 const shield8 = @embedFile("shield8.tvgt");
 
 title_timer: core.Timer,
-blur_pipeline: *gpu.ComputePipeline,
-fullscreen_quad_pipeline: *gpu.RenderPipeline,
-cube_texture: *gpu.Texture,
-textures: [2]*gpu.Texture,
-blur_params_buffer: *gpu.Buffer,
-compute_constants: *gpu.BindGroup,
-compute_bind_group_0: *gpu.BindGroup,
-compute_bind_group_1: *gpu.BindGroup,
-compute_bind_group_2: *gpu.BindGroup,
-show_result_bind_group: *gpu.BindGroup,
-img_size: gpu.Extent3D,
+fullscreen_quad_pipeline: *core.gpu.RenderPipeline,
+tvg_rendered_texture: *core.gpu.Texture,
+// texture: *core.gpu.Texture,
+show_result_bind_group: *core.gpu.BindGroup,
+img_size: core.gpu.Extent3D,
 
 pub const App = @This();
 
@@ -36,18 +27,25 @@ pub fn init(app: *App) !void {
     try core.init(.{});
     const allocator = gpa.allocator();
 
-    const queue = core.queue;
+    // Parse TVG text bytes
+    var intermediary_tvg = std.ArrayList(u8).init(allocator);
+    defer intermediary_tvg.deinit();
+    try tvg.text.parse(allocator, shield8, intermediary_tvg.writer());
 
-    const blur_shader_module = core.device.createShaderModuleWGSL("blur.wgsl", @embedFile("blur.wgsl"));
+    // Render TVG into an image
+    var stream = std.io.fixedBufferStream(intermediary_tvg.items);
+    var image = try tvg.rendering.renderStream(
+        allocator,
+        allocator,
+        // .inherit,
+        // Can also specify a size here...
+        tvg.rendering.SizeHint{ .size = tvg.rendering.Size{ .width = 240, .height = 240 } },
+        .x1,
+        stream.reader(),
+    );
+    defer image.deinit(allocator);
 
-    const blur_pipeline_descriptor = gpu.ComputePipeline.Descriptor{
-        .compute = gpu.ProgrammableStageDescriptor{
-            .module = blur_shader_module,
-            .entry_point = "main",
-        },
-    };
-
-    const blur_pipeline = core.device.createComputePipeline(&blur_pipeline_descriptor);
+    // Start doing WGPU stuff
 
     const fullscreen_quad_vs_module = core.device.createShaderModuleWGSL(
         "fullscreen_textured_quad.wgsl",
@@ -59,20 +57,20 @@ pub fn init(app: *App) !void {
         @embedFile("fullscreen_textured_quad.wgsl"),
     );
 
-    const blend = gpu.BlendState{};
-    const color_target = gpu.ColorTargetState{
+    const blend = core.gpu.BlendState{};
+    const color_target = core.gpu.ColorTargetState{
         .format = core.descriptor.format,
         .blend = &blend,
-        .write_mask = gpu.ColorWriteMaskFlags.all,
+        .write_mask = core.gpu.ColorWriteMaskFlags.all,
     };
 
-    const fragment_state = gpu.FragmentState.init(.{
+    const fragment_state = core.gpu.FragmentState.init(.{
         .module = fullscreen_quad_fs_module,
         .entry_point = "frag_main",
         .targets = &.{color_target},
     });
 
-    const fullscreen_quad_pipeline_descriptor = gpu.RenderPipeline.Descriptor{
+    const fullscreen_quad_pipeline_descriptor = core.gpu.RenderPipeline.Descriptor{
         .fragment = &fragment_state,
         .vertex = .{
             .module = fullscreen_quad_vs_module,
@@ -87,48 +85,9 @@ pub fn init(app: *App) !void {
         .min_filter = .linear,
     });
 
-    // PARSE TVG
-    var intermediary_tvg = std.ArrayList(u8).init(allocator);
-    defer intermediary_tvg.deinit();
-    try tvg.text.parse(allocator, shield8, intermediary_tvg.writer());
+    const img_size = core.gpu.Extent3D{ .width = @as(u32, @intCast(image.width)), .height = @as(u32, @intCast(image.height)) };
 
-    // REDNER TVG
-    var stream = std.io.fixedBufferStream(intermediary_tvg.items);
-    var image = try tvg.rendering.renderStream(
-        allocator,
-        allocator,
-        .inherit,
-        // tvg.rendering.SizeHint{ .size = tvg.rendering.Size{ .width = 240, .height = 240 } },
-        @enumFromInt(1),
-        stream.reader(),
-    );
-    defer image.deinit(allocator);
-
-    // pub const Color8 = extern struct { r: u8, g: u8, b: u8, a: u8 };
-    // pub const Image = struct {
-    //     width: u32,
-    //     height: u32,
-    //     pixels: []Color8,
-
-    //     pub fn deinit(self: *Image, allocator: std.mem.Allocator) void {
-    //         allocator.free(self.pixels);
-    //         self.* = undefined;
-    //     }
-    // };
-
-    std.debug.print("{any} {any} {any}", .{ image.width, image.height, image.pixels.len });
-
-    // var framebuffer: Framebuffer = undefined;
-    // try tvg.renderStream(head_arena_allocator, framebuffer, parser);
-
-    /////////////////////////////////////////
-
-    // var img = try zigimg.Image.fromMemory(allocator, gotta_go_fast_png);
-    // defer img.deinit();
-
-    const img_size = gpu.Extent3D{ .width = @as(u32, @intCast(image.width)), .height = @as(u32, @intCast(image.height)) };
-
-    const cube_texture = core.device.createTexture(&.{
+    const tvg_rendered_texture = core.device.createTexture(&.{
         .size = img_size,
         .format = .rgba8_unorm,
         .usage = .{
@@ -138,116 +97,24 @@ pub fn init(app: *App) !void {
         },
     });
 
-    const data_layout = gpu.Texture.DataLayout{
+    const data_layout = core.gpu.Texture.DataLayout{
         .bytes_per_row = @as(u32, @intCast(image.width * 4)),
         .rows_per_image = @as(u32, @intCast(image.height)),
     };
 
-    // const pixels = try color8ToRgba32(allocator, image.pixels);
-    // defer pixels.deinit(allocator);
-    queue.writeTexture(&.{ .texture = cube_texture }, &data_layout, &img_size, image.pixels);
+    core.queue.writeTexture(&.{ .texture = tvg_rendered_texture }, &data_layout, &img_size, image.pixels);
 
-    // switch (img.pixels) {
-    //     .rgba32 => |pixels| queue.writeTexture(&.{ .texture = cube_texture }, &data_layout, &img_size, pixels),
-    //     .rgb24 => |pixels| {
-    //         const data = try rgb24ToRgba32(allocator, pixels);
-    //         defer data.deinit(allocator);
-    //         queue.writeTexture(&.{ .texture = cube_texture }, &data_layout, &img_size, data.rgba32);
-    //     },
-    //     else => @panic("unsupported image color format"),
-    // }
-
-    var textures: [2]*gpu.Texture = undefined;
-    for (textures, 0..) |_, i| {
-        textures[i] = core.device.createTexture(&.{
-            .size = img_size,
-            .format = .rgba8_unorm,
-            .usage = .{
-                .storage_binding = true,
-                .texture_binding = true,
-                .copy_dst = true,
-            },
-        });
-    }
-
-    // the shader blurs the input texture in one direction,
-    // depending on whether flip value is 0 or 1
-    var flip: [2]*gpu.Buffer = undefined;
-    for (flip, 0..) |_, i| {
-        const buffer = core.device.createBuffer(&.{
-            .usage = .{ .uniform = true },
-            .size = @sizeOf(u32),
-            .mapped_at_creation = .true,
-        });
-
-        const buffer_mapped = buffer.getMappedRange(u32, 0, 1);
-        buffer_mapped.?[0] = @as(u32, @intCast(i));
-        buffer.unmap();
-
-        flip[i] = buffer;
-    }
-
-    const blur_params_buffer = core.device.createBuffer(&.{
-        .size = 8,
-        .usage = .{ .copy_dst = true, .uniform = true },
-    });
-
-    const compute_constants = core.device.createBindGroup(&gpu.BindGroup.Descriptor.init(.{
-        .layout = blur_pipeline.getBindGroupLayout(0),
-        .entries = &.{
-            gpu.BindGroup.Entry.sampler(0, sampler),
-            gpu.BindGroup.Entry.buffer(1, blur_params_buffer, 0, 8),
-        },
-    }));
-
-    const compute_bind_group_0 = core.device.createBindGroup(&gpu.BindGroup.Descriptor.init(.{
-        .layout = blur_pipeline.getBindGroupLayout(1),
-        .entries = &.{
-            gpu.BindGroup.Entry.textureView(1, cube_texture.createView(&gpu.TextureView.Descriptor{})),
-            gpu.BindGroup.Entry.textureView(2, textures[0].createView(&gpu.TextureView.Descriptor{})),
-            gpu.BindGroup.Entry.buffer(3, flip[0], 0, 4),
-        },
-    }));
-
-    const compute_bind_group_1 = core.device.createBindGroup(&gpu.BindGroup.Descriptor.init(.{
-        .layout = blur_pipeline.getBindGroupLayout(1),
-        .entries = &.{
-            gpu.BindGroup.Entry.textureView(1, textures[0].createView(&gpu.TextureView.Descriptor{})),
-            gpu.BindGroup.Entry.textureView(2, textures[1].createView(&gpu.TextureView.Descriptor{})),
-            gpu.BindGroup.Entry.buffer(3, flip[1], 0, 4),
-        },
-    }));
-
-    const compute_bind_group_2 = core.device.createBindGroup(&gpu.BindGroup.Descriptor.init(.{
-        .layout = blur_pipeline.getBindGroupLayout(1),
-        .entries = &.{
-            gpu.BindGroup.Entry.textureView(1, textures[1].createView(&gpu.TextureView.Descriptor{})),
-            gpu.BindGroup.Entry.textureView(2, textures[0].createView(&gpu.TextureView.Descriptor{})),
-            gpu.BindGroup.Entry.buffer(3, flip[0], 0, 4),
-        },
-    }));
-
-    const show_result_bind_group = core.device.createBindGroup(&gpu.BindGroup.Descriptor.init(.{
+    const show_result_bind_group = core.device.createBindGroup(&core.gpu.BindGroup.Descriptor.init(.{
         .layout = fullscreen_quad_pipeline.getBindGroupLayout(0),
         .entries = &.{
-            gpu.BindGroup.Entry.sampler(0, sampler),
-            gpu.BindGroup.Entry.textureView(1, textures[1].createView(&gpu.TextureView.Descriptor{})),
+            core.gpu.BindGroup.Entry.sampler(0, sampler),
+            core.gpu.BindGroup.Entry.textureView(1, tvg_rendered_texture.createView(&core.gpu.TextureView.Descriptor{})),
         },
     }));
 
-    const blur_params_buffer_data = [_]u32{ filter_size, block_dimension };
-    queue.writeBuffer(blur_params_buffer, 0, &blur_params_buffer_data);
-
     app.title_timer = try core.Timer.start();
-    app.blur_pipeline = blur_pipeline;
     app.fullscreen_quad_pipeline = fullscreen_quad_pipeline;
-    app.cube_texture = cube_texture;
-    app.textures = textures;
-    app.blur_params_buffer = blur_params_buffer;
-    app.compute_constants = compute_constants;
-    app.compute_bind_group_0 = compute_bind_group_0;
-    app.compute_bind_group_1 = compute_bind_group_1;
-    app.compute_bind_group_2 = compute_bind_group_2;
+    app.tvg_rendered_texture = tvg_rendered_texture;
     app.show_result_bind_group = show_result_bind_group;
     app.img_size = img_size;
 }
@@ -259,6 +126,8 @@ pub fn deinit(app: *App) void {
 }
 
 pub fn update(app: *App) !bool {
+
+    // HANDLE EVENTS
     var iter = core.pollEvents();
     while (iter.next()) |event| {
         if (event == .close) return true;
@@ -266,37 +135,14 @@ pub fn update(app: *App) !bool {
 
     const back_buffer_view = core.swap_chain.getCurrentTextureView().?;
     const encoder = core.device.createCommandEncoder(null);
-
-    const compute_pass = encoder.beginComputePass(null);
-    compute_pass.setPipeline(app.blur_pipeline);
-    compute_pass.setBindGroup(0, app.compute_constants, &.{});
-
-    const width: u32 = @as(u32, @intCast(app.img_size.width));
-    const height: u32 = @as(u32, @intCast(app.img_size.height));
-    compute_pass.setBindGroup(1, app.compute_bind_group_0, &.{});
-    compute_pass.dispatchWorkgroups(try std.math.divCeil(u32, width, block_dimension), try std.math.divCeil(u32, height, batch[1]), 1);
-
-    compute_pass.setBindGroup(1, app.compute_bind_group_1, &.{});
-    compute_pass.dispatchWorkgroups(try std.math.divCeil(u32, height, block_dimension), try std.math.divCeil(u32, width, batch[1]), 1);
-
-    var i: u32 = 0;
-    while (i < iterations - 1) : (i += 1) {
-        compute_pass.setBindGroup(1, app.compute_bind_group_2, &.{});
-        compute_pass.dispatchWorkgroups(try std.math.divCeil(u32, width, block_dimension), try std.math.divCeil(u32, height, batch[1]), 1);
-
-        compute_pass.setBindGroup(1, app.compute_bind_group_1, &.{});
-        compute_pass.dispatchWorkgroups(try std.math.divCeil(u32, height, block_dimension), try std.math.divCeil(u32, width, batch[1]), 1);
-    }
-    compute_pass.end();
-
-    const color_attachment = gpu.RenderPassColorAttachment{
+    const color_attachment = core.gpu.RenderPassColorAttachment{
         .view = back_buffer_view,
-        .clear_value = std.mem.zeroes(gpu.Color),
+        .clear_value = std.mem.zeroes(core.gpu.Color),
         .load_op = .clear,
         .store_op = .store,
     };
 
-    const render_pass_descriptor = gpu.RenderPassDescriptor.init(.{
+    const render_pass_descriptor = core.gpu.RenderPassDescriptor.init(.{
         .color_attachments = &.{color_attachment},
     });
 
@@ -309,7 +155,7 @@ pub fn update(app: *App) !bool {
     var command = encoder.finish(null);
     encoder.release();
     const queue = core.queue;
-    queue.submit(&[_]*gpu.CommandBuffer{command});
+    queue.submit(&[_]*core.gpu.CommandBuffer{command});
     command.release();
     core.swap_chain.present();
     back_buffer_view.release();
@@ -324,26 +170,6 @@ pub fn update(app: *App) !bool {
     }
 
     return false;
-}
-
-fn rgb24ToRgba32(allocator: std.mem.Allocator, in: []zigimg.color.Rgb24) !zigimg.color.PixelStorage {
-    const out = try zigimg.color.PixelStorage.init(allocator, .rgba32, in.len);
-    var i: usize = 0;
-    while (i < in.len) : (i += 1) {
-        out.rgba32[i] = zigimg.color.Rgba32{ .r = in[i].r, .g = in[i].g, .b = in[i].b, .a = 255 };
-    }
-    return out;
-}
-
-fn color8ToRgba32(allocator: std.mem.Allocator, in: []tvg.rendering.Color8) !zigimg.color.PixelStorage {
-    // pub const Color8 = extern struct { r: u8, g: u8, b: u8, a: u8 };
-    const out = try zigimg.color.PixelStorage.init(allocator, .rgba32, in.len);
-    var i: usize = 0;
-    while (i < in.len) : (i += 1) {
-        // out.rgba32[i] = zigimg.color.Rgba32{ .r = in[i].r, .g = in[i].g, .b = in[i].b, .a = in[i].a };
-        out.rgba32[i] = zigimg.color.Rgba32{ .r = 255, .g = 0, .b = 0, .a = 1 };
-    }
-    return out;
 }
 
 const Framebuffer = struct {
