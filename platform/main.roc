@@ -1,8 +1,6 @@
 platform "roc-graphics"
     requires {} { main : { init : Init, render : Str} }
-    exposes [
-        Init,
-    ]
+    exposes []
     packages {}
     imports [
         Json.{json},
@@ -11,8 +9,16 @@ platform "roc-graphics"
     provides [mainForHost]
 
 mainForHost : Str -> Str
-mainForHost = \_ ->
-    Encode.toBytes main.init json |> Str.fromUtf8 |> Result.withDefault "UTF8 ERROR"
+mainForHost = \fromHost ->
+    when fromHost is 
+        "INIT" -> 
+            Encode.toBytes main.init json |> Str.fromUtf8 |> Result.withDefault "UTF8 ERROR"
+
+        "RENDER" -> 
+            main.render
+        
+        _ -> 
+            crash "unsupported input from host"
 
 Init : {
     displayMode : Str, # "borderless" | "windowed" | "fullscreen"

@@ -55,7 +55,7 @@ export fn roc_panic(c_ptr: *anyopaque, tag_id: u32) callconv(.C) void {
 
     const stderr = std.io.getStdErr().writer();
     const msg = @as([*:0]const u8, @ptrCast(c_ptr));
-    stderr.print("Application crashed with message\n\n    {s}\n\nShutting down\n", .{msg}) catch unreachable;
+    stderr.print("Roc application crashed with message\n\n    {s}\n\nShutting down\n", .{msg}) catch unreachable;
     std.process.exit(0);
 }
 
@@ -115,37 +115,12 @@ pub fn main() !void {
     defer _ = gpa.deinit();
     core.allocator = gpa.allocator();
 
-    const stdout = std.io.getStdOut().writer();
-    _ = stdout;
-    const stderr = std.io.getStdErr().writer();
-    _ = stderr;
+    // const stdout = std.io.getStdOut().writer();
+    // _ = stdout;
+    // const stderr = std.io.getStdErr().writer();
+    // _ = stderr;
 
     // var timer = std.time.Timer.start() catch unreachable;
-
-    // actually call roc to populate the callresult
-    var argument = RocStr.fromSlice("Luke");
-    var callresult = RocStr.empty();
-    defer callresult.decref();
-
-    roc__mainForHost_1_exposed_generic(&callresult, &argument);
-
-    // DEBUG PRINT ROC CALL RESULT
-    // try stdout.print("ROC GIVES-----\n{s}\n--------\n", .{callresult.asSlice()});
-
-    const parsedData = try std.json.parseFromSlice(AppInitOptions, core.allocator, callresult.asSlice(), .{});
-    defer parsedData.deinit();
-
-    // DEBUG PRINT PARSED DATA
-    // try stdout.print("JSON PARSED------\n{any}\n--------\n", .{parsedData.value});
-
-    // Display mode
-    var display_mode: core.DisplayMode =
-        if (mem.eql(u8, parsedData.value.displayMode, "borderless"))
-        core.DisplayMode.borderless
-    else if (mem.eql(u8, parsedData.value.displayMode, "fullscreen"))
-        core.DisplayMode.fullscreen
-    else
-        core.DisplayMode.windowed;
 
     // const nanos = timer.read();
     // const seconds = (@as(f64, @floatFromInt(nanos)) / 1_000_000_000.0);
@@ -168,23 +143,7 @@ pub fn main() !void {
     // Use the result from Roc as the shader code
     // const shader: [*:0]const u8 = try addNullTermination(callresult.asSlice());
 
-    // pub const Options = struct {
-    //     is_app: bool = false,
-    //     headless: bool = false,
-    //     display_mode: DisplayMode = .windowed,
-    //     border: bool = true,
-    //     title: [:0]const u8 = "Mach core",
-    //     size: Size = .{ .width = 1920 / 2, .height = 1080 / 2 },
-    //     power_preference: gpu.PowerPreference = .undefined,
-    //     required_features: ?[]const gpu.FeatureName = null,
-    //     required_limits: ?gpu.Limits = null,
-    // };
-    const options = core.Options{
-        .display_mode = display_mode,
-        .border = parsedData.value.border,
-        .title = try addNullTermination(parsedData.value.title),
-        .size = core.Size{ .width = parsedData.value.width, .height = parsedData.value.height },
-    };
+    const options = try roc_init(core.allocator);
 
     var app: App = undefined;
     try app.init(options);
@@ -199,4 +158,40 @@ fn addNullTermination(slice: []const u8) ![:0]const u8 {
     @memcpy(result.ptr, slice);
     result[slice.len] = 0; // Add null termination
     return result[0..slice.len :0];
+}
+
+fn roc_init(allocator: std.mem.Allocator) !core.Options {
+    var argument = RocStr.fromSlice("INIT");
+    var callresult = RocStr.empty();
+    defer callresult.decref();
+    defer argument.decref();
+
+    roc__mainForHost_1_exposed_generic(&callresult, &argument);
+
+    // DEBUG PRINT ROC CALL RESULT
+    // try stdout.print("ROC GIVES-----\n{s}\n--------\n", .{callresult.asSlice()});
+
+    const parsedData = try std.json.parseFromSlice(AppInitOptions, allocator, callresult.asSlice(), .{});
+    defer parsedData.deinit();
+
+    // DEBUG PRINT PARSED DATA
+    // try stdout.print("JSON PARSED------\n{any}\n--------\n", .{parsedData.value});
+
+    // Display mode
+    var display_mode: core.DisplayMode =
+        if (mem.eql(u8, parsedData.value.displayMode, "borderless"))
+        core.DisplayMode.borderless
+    else if (mem.eql(u8, parsedData.value.displayMode, "fullscreen"))
+        core.DisplayMode.fullscreen
+    else
+        core.DisplayMode.windowed;
+
+    const options = core.Options{
+        .display_mode = display_mode,
+        .border = parsedData.value.border,
+        .title = try addNullTermination(parsedData.value.title),
+        .size = core.Size{ .width = parsedData.value.width, .height = parsedData.value.height },
+    };
+
+    return options;
 }

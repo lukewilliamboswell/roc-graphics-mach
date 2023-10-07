@@ -20,6 +20,8 @@ pub fn build(b: *std.Build) !void {
         .optimize = optimize,
     }).module("zigimg");
 
+    const roc_app_dylib_path = if (b.args) |args| args[0] else "rocLovesGraphics.dylib";
+
     const app = try mach_core.App.init(b, mach_core_dep.builder, .{
         .name = "myapp",
         .src = "platform/src/main.zig",
@@ -30,7 +32,7 @@ pub fn build(b: *std.Build) !void {
             .{ .name = "zigimg", .module = zig_img_dep },
         },
         .custom_entrypoint = "platform/src/host.zig",
-        .roc_app_dylib_path = "rocLovesZig.dylib",
+        .roc_app_dylib_path = roc_app_dylib_path,
     });
     if (b.args) |args| app.run.addArgs(args);
 
