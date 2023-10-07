@@ -2,62 +2,51 @@ const std = @import("std");
 const core = @import("mach-core");
 const tvg = @import("tinyvg");
 const zigimg = @import("zigimg");
-const tvgt_bytes = @embedFile("shield8.tvgt");
+const roc = @import("roc.zig");
 
 title_timer: core.Timer,
 fullscreen_quad_pipeline: *core.gpu.RenderPipeline,
-tvg_rendered_texture: *core.gpu.Texture,
-// texture: *core.gpu.Texture,
+texture: *core.gpu.Texture,
 show_result_bind_group: *core.gpu.BindGroup,
 img_size: core.gpu.Extent3D,
 
 pub const App = @This();
 
-// Constants from the blur.wgsl shader
-const tile_dimension: u32 = 128;
-const batch: [2]u32 = .{ 4, 4 };
-
-// Currently hardcoded
-const filter_size: u32 = 15;
-const iterations: u32 = 2;
-var block_dimension: u32 = tile_dimension - (filter_size - 1);
 var gpa = std.heap.GeneralPurposeAllocator(.{}){};
 
-pub fn init(app: *App, options: core.Options) !void {
-    try core.init(options);
+pub fn init(app: *App) !void {
+
+    // Get an allocator
     const allocator = gpa.allocator();
 
-    // Parse TVG text bytes
-    var intermediary_tvg = std.ArrayList(u8).init(allocator);
-    defer intermediary_tvg.deinit();
-    try tvg.text.parse(allocator, tvgt_bytes, intermediary_tvg.writer());
+    // Call Roc to get initial parameters from Init
+    const options = try roc.roc_init(allocator);
 
-    // Render TVG into an image
-    var stream = std.io.fixedBufferStream(intermediary_tvg.items);
-    var image = try tvg.rendering.renderStream(
-        allocator,
-        allocator,
-        .inherit,
-        // ^^ Can also specify a size here...
-        // tvg.rendering.SizeHint{ .size = tvg.rendering.Size{ .width = 240, .height = 240 } },
-        .x1,
-        // ^^ Can specify other anti aliasing modes .x4, .x9, .x16, .x25
-        stream.reader(),
-    );
-    defer image.deinit(allocator);
+    // Initialize the mach-core library
+    try core.init(options);
 
-    // Start doing WGPU stuff
+    // Call Roc to get the TVG text bytes from Render
+    var framebuffer = try roc.roc_render(allocator);
+    const image_pixels: []tvg.rendering.Color8 = framebuffer.pixels;
+    const image_width: u32 = @intCast(framebuffer.width);
+    const image_height: u32 = @intCast(framebuffer.height);
+    defer _ = &framebuffer.deinit(allocator);
 
+    // Start doing WGPU and Graphics stuff ------------------
+
+    // Create a Vertex shader
     const fullscreen_quad_vs_module = core.device.createShaderModuleWGSL(
         "fullscreen_textured_quad.wgsl",
         @embedFile("fullscreen_textured_quad.wgsl"),
     );
 
+    // Create a Fragment shader
     const fullscreen_quad_fs_module = core.device.createShaderModuleWGSL(
         "fullscreen_textured_quad.wgsl",
         @embedFile("fullscreen_textured_quad.wgsl"),
     );
 
+    // Setup Blend and Color states
     const blend = core.gpu.BlendState{};
     const color_target = core.gpu.ColorTargetState{
         .format = core.descriptor.format,
@@ -65,12 +54,14 @@ pub fn init(app: *App, options: core.Options) !void {
         .write_mask = core.gpu.ColorWriteMaskFlags.all,
     };
 
+    // Fragment initialisation
     const fragment_state = core.gpu.FragmentState.init(.{
         .module = fullscreen_quad_fs_module,
         .entry_point = "frag_main",
         .targets = &.{color_target},
     });
 
+    // Describe render pipeline
     const fullscreen_quad_pipeline_descriptor = core.gpu.RenderPipeline.Descriptor{
         .fragment = &fragment_state,
         .vertex = .{
@@ -79,16 +70,18 @@ pub fn init(app: *App, options: core.Options) !void {
         },
     };
 
+    // Create our pipeline
     const fullscreen_quad_pipeline = core.device.createRenderPipeline(&fullscreen_quad_pipeline_descriptor);
 
+    // Create a sampler
     const sampler = core.device.createSampler(&.{
         .mag_filter = .linear,
         .min_filter = .linear,
     });
 
-    const img_size = core.gpu.Extent3D{ .width = @as(u32, @intCast(image.width)), .height = @as(u32, @intCast(image.height)) };
-
-    const tvg_rendered_texture = core.device.createTexture(&.{
+    // Create a texture
+    const img_size = core.gpu.Extent3D{ .width = image_width, .height = image_height };
+    const texture = core.device.createTexture(&.{
         .size = img_size,
         .format = .rgba8_unorm,
         .usage = .{
@@ -98,24 +91,27 @@ pub fn init(app: *App, options: core.Options) !void {
         },
     });
 
+    // Describe the texture layout
     const data_layout = core.gpu.Texture.DataLayout{
-        .bytes_per_row = @as(u32, @intCast(image.width * 4)),
-        .rows_per_image = @as(u32, @intCast(image.height)),
+        .bytes_per_row = image_width * 4,
+        .rows_per_image = image_height,
     };
 
-    core.queue.writeTexture(&.{ .texture = tvg_rendered_texture }, &data_layout, &img_size, image.pixels);
+    // Queue command to copy the bytes into the texture
+    core.queue.writeTexture(&.{ .texture = texture }, &data_layout, &img_size, image_pixels);
 
+    // Setup bind group for the shader to access sampler and texture
     const show_result_bind_group = core.device.createBindGroup(&core.gpu.BindGroup.Descriptor.init(.{
         .layout = fullscreen_quad_pipeline.getBindGroupLayout(0),
         .entries = &.{
             core.gpu.BindGroup.Entry.sampler(0, sampler),
-            core.gpu.BindGroup.Entry.textureView(1, tvg_rendered_texture.createView(&core.gpu.TextureView.Descriptor{})),
+            core.gpu.BindGroup.Entry.textureView(1, texture.createView(&core.gpu.TextureView.Descriptor{})),
         },
     }));
 
     app.title_timer = try core.Timer.start();
     app.fullscreen_quad_pipeline = fullscreen_quad_pipeline;
-    app.tvg_rendered_texture = tvg_rendered_texture;
+    app.texture = texture;
     app.show_result_bind_group = show_result_bind_group;
     app.img_size = img_size;
 }
@@ -156,8 +152,14 @@ pub fn update(app: *App) !bool {
         }
     }
 
+    // Get the current view
     const back_buffer_view = core.swap_chain.getCurrentTextureView().?;
-    const encoder = core.device.createCommandEncoder(null);
+
+    // Create a GPUCommandEncoder
+    // https://developer.mozilla.org/en-US/docs/Web/API/GPUCommandEncoder
+    const gpu_command_encoder = core.device.createCommandEncoder(null);
+
+    // Create a Color attachment for the current view
     const color_attachment = core.gpu.RenderPassColorAttachment{
         .view = back_buffer_view,
         .clear_value = std.mem.zeroes(core.gpu.Color),
@@ -165,27 +167,38 @@ pub fn update(app: *App) !bool {
         .store_op = .store,
     };
 
+    // Create a render pass descriptor for the Color attachment
     const render_pass_descriptor = core.gpu.RenderPassDescriptor.init(.{
         .color_attachments = &.{color_attachment},
     });
 
-    const render_pass = encoder.beginRenderPass(&render_pass_descriptor);
+    // Queue render pass commands
+    const render_pass = gpu_command_encoder.beginRenderPass(&render_pass_descriptor);
     render_pass.setPipeline(app.fullscreen_quad_pipeline);
     render_pass.setBindGroup(0, app.show_result_bind_group, &.{});
     render_pass.draw(6, 1, 0, 0);
     render_pass.end();
 
-    var command = encoder.finish(null);
-    encoder.release();
+    // Complete recording command sequence on GPUCommandEncoder,
+    // return corresponding GPUCommandBuffer
+    var gpu_command_buffer = gpu_command_encoder.finish(null);
+    gpu_command_encoder.release();
+
+    // A GPUCommandBuffer is created via the GPUCommandEncoder.finish() method;
+    // the GPU commands recorded within are submitted for execution by passing
+    // the GPUCommandBuffer into the parameter of a GPUQueue.submit() call.
+    // https://developer.mozilla.org/en-US/docs/Web/API/GPUCommandBuffer
     const queue = core.queue;
-    queue.submit(&[_]*core.gpu.CommandBuffer{command});
-    command.release();
+    queue.submit(&[_]*core.gpu.CommandBuffer{gpu_command_buffer});
+    gpu_command_buffer.release();
+
     core.swap_chain.present();
     back_buffer_view.release();
 
-    // update the window title every second
+    // Log framerate and input rate information
     if (app.title_timer.read() >= 1.0) {
         app.title_timer.reset();
+        // TODO improve logging without using window title or debug print
         // try core.printTitle("[ {d}fps ] [ Input {d}hz ]", .{
         //     core.frameRate(),
         //     core.inputRate(),
@@ -204,7 +217,6 @@ const Framebuffer = struct {
     const gamma = 2.2;
 
     // private API
-
     slice: []tvg.Color,
     stride: usize,
 
