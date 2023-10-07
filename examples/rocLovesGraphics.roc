@@ -11,8 +11,8 @@ init = {
     displayMode: "windowed",
     border: Bool.true,
     title: "Roc 💜 Graphics",
-    width: 100,
-    height: 100,
+    width: 200,
+    height: 200,
 }
 
 render : Str
@@ -21,12 +21,26 @@ render =
     (tvg 1
     (100 100 1/1 u8888 default)
     (
+        (1.000 1.000 1.000 1.000)
         (0.486 0.220 0.961 1.000)
     )
     (
         (
         fill_path
         (flat 0)
+        (
+            (0 0)
+            (
+            (line - 100 0)
+            (line - 100 100)
+            (line - 0 100)
+            (close -)
+            )
+        )
+        )
+        (
+        fill_path
+        (flat 1)
         (
             (24.75 23.5)
             (
@@ -46,7 +60,6 @@ render =
         )
     )
     )
-
     """
 
 

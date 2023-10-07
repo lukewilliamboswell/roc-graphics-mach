@@ -154,10 +154,10 @@ pub fn roc_render(allocator: std.mem.Allocator) !tvg.rendering.Image {
     var image = try tvg.rendering.renderStream(
         allocator,
         allocator,
-        .inherit,
+        // .inherit,
         // ^^ Can also specify a size here...
-        // tvg.rendering.SizeHint{ .size = tvg.rendering.Size{ .width = 240, .height = 240 } },
-        .x1,
+        tvg.rendering.SizeHint{ .size = tvg.rendering.Size{ .width = (1920 / 2), .height = (1080 / 2) } },
+        .x4,
         // ^^ Can specify other anti aliasing modes .x4, .x9, .x16, .x25
         stream.reader(),
     );
