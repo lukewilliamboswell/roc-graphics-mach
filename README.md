@@ -1,5 +1,5 @@
 
-# Roc-Mach Graphics
+# Roc 💜 Mach 🟰 Graphics
 
 An experiment to combine mach graphics and Roc lang
 
