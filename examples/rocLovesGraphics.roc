@@ -2,18 +2,21 @@ app "rocLovesGraphics"
     packages { 
         pf: "../platform/main.roc",
     }
-    imports []
+    imports [
+        pf.Event.{ Key },
+    ]
     provides [main] to pf
 
-main = {init, render}
+main = {init, update, render}
 
-init = {
-    displayMode: "windowed",
-    border: Bool.true,
-    title: "Roc 💜 Graphics",
-    width: 200,
-    height: 200,
-}
+init = \default -> { default & title: "Roc 💜 Graphics", width: 200, height: 200 }
+
+update : [KeyPress Key] -> [NoOp, Exit, Redraw]
+update = \event ->
+    when event is 
+        KeyPress Escape -> Exit
+        KeyPress Space -> Redraw
+        KeyPress Enter -> NoOp
 
 render : Str
 render = 

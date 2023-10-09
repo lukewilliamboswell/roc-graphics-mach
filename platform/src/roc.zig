@@ -154,16 +154,53 @@ pub fn roc_render(allocator: std.mem.Allocator) !tvg.rendering.Image {
     var image = try tvg.rendering.renderStream(
         allocator,
         allocator,
-        // .inherit,
+        .inherit,
         // ^^ Can also specify a size here...
-        tvg.rendering.SizeHint{ .size = tvg.rendering.Size{ .width = (1920 / 2), .height = (1080 / 2) } },
-        .x4,
+        // tvg.rendering.SizeHint{ .size = tvg.rendering.Size{ .width = (1920 / 2), .height = (1080 / 2) } },
+        .x1,
         // ^^ Can specify other anti aliasing modes .x4, .x9, .x16, .x25
         stream.reader(),
     );
 
     // Return the framebuffer
     return image;
+}
+
+pub const UpdateEvent = enum {
+    KeyPressSpace,
+    KeyPressEscape,
+    KeyPressEnter,
+};
+
+pub const UpdateOp = enum {
+    NoOp,
+    Exit,
+    Redraw,
+};
+
+pub fn roc_update(event: UpdateEvent) UpdateOp {
+    const command: []const u8 = switch (event) {
+        .KeyPressSpace => "UPDATE:KEYPRESS:SPACE",
+        .KeyPressEscape => "UPDATE:KEYPRESS:ESCAPE",
+        .KeyPressEnter => "UPDATE:KEYPRESS:ENTER",
+    };
+
+    // Call into Roc
+    var argument = RocStr.fromSlice(command);
+    var callresult = RocStr.empty();
+    defer callresult.decref();
+    defer argument.decref();
+    roc__mainForHost_1_exposed_generic(&callresult, &argument);
+
+    const opStr = callresult.asSlice();
+
+    if (mem.eql(u8, opStr, "REDRAW")) {
+        return UpdateOp.Redraw;
+    } else if (mem.eql(u8, opStr, "EXIT")) {
+        return UpdateOp.Exit;
+    } else {
+        return UpdateOp.NoOp;
+    }
 }
 
 fn addNullTermination(slice: []const u8) ![:0]const u8 {

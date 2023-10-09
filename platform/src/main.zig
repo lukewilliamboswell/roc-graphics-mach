@@ -7,6 +7,7 @@ const roc = @import("roc.zig");
 title_timer: core.Timer,
 fullscreen_quad_pipeline: *core.gpu.RenderPipeline,
 texture: *core.gpu.Texture,
+texture_data_layout: core.gpu.Texture.DataLayout,
 show_result_bind_group: *core.gpu.BindGroup,
 img_size: core.gpu.Extent3D,
 
@@ -92,13 +93,13 @@ pub fn init(app: *App) !void {
     });
 
     // Describe the texture layout
-    const data_layout = core.gpu.Texture.DataLayout{
+    const texture_data_layout = core.gpu.Texture.DataLayout{
         .bytes_per_row = image_width * 4,
         .rows_per_image = image_height,
     };
 
     // Queue command to copy the bytes into the texture
-    core.queue.writeTexture(&.{ .texture = texture }, &data_layout, &img_size, image_pixels);
+    core.queue.writeTexture(&.{ .texture = texture }, &texture_data_layout, &img_size, image_pixels);
 
     // Setup bind group for the shader to access sampler and texture
     const show_result_bind_group = core.device.createBindGroup(&core.gpu.BindGroup.Descriptor.init(.{
@@ -112,6 +113,7 @@ pub fn init(app: *App) !void {
     app.title_timer = try core.Timer.start();
     app.fullscreen_quad_pipeline = fullscreen_quad_pipeline;
     app.texture = texture;
+    app.texture_data_layout = texture_data_layout;
     app.show_result_bind_group = show_result_bind_group;
     app.img_size = img_size;
 }
@@ -125,12 +127,37 @@ pub fn deinit(app: *App) void {
 pub fn update(app: *App) !bool {
 
     // HANDLE EVENTS
+    var redraw = false;
     var iter = core.pollEvents();
     while (iter.next()) |event| {
+
+        // DEBUG PRINT EVENT
+        // std.debug.print("Event: {any}\n", .{event});
+
         switch (event) {
             .key_press => |ev| {
                 switch (ev.key) {
-                    .space => return true,
+                    .space => {
+                        switch (roc.roc_update(roc.UpdateEvent.KeyPressSpace)) {
+                            roc.UpdateOp.NoOp => {},
+                            roc.UpdateOp.Exit => return true,
+                            roc.UpdateOp.Redraw => redraw = true,
+                        }
+                    },
+                    .enter => {
+                        switch (roc.roc_update(roc.UpdateEvent.KeyPressEnter)) {
+                            roc.UpdateOp.NoOp => {},
+                            roc.UpdateOp.Exit => return true,
+                            roc.UpdateOp.Redraw => redraw = true,
+                        }
+                    },
+                    .escape => {
+                        switch (roc.roc_update(roc.UpdateEvent.KeyPressEscape)) {
+                            roc.UpdateOp.NoOp => {},
+                            roc.UpdateOp.Exit => return true,
+                            roc.UpdateOp.Redraw => redraw = true,
+                        }
+                    },
                     // .left => app.direction[0] += 1,
                     // .right => app.direction[0] -= 1,
                     // .up => app.direction[1] += 1,
@@ -150,6 +177,20 @@ pub fn update(app: *App) !bool {
             .close => return true,
             else => {},
         }
+    }
+
+    if (redraw) {
+        // Call Roc to get the TVG text bytes from Render
+        var framebuffer = try roc.roc_render(core.allocator);
+        const image_pixels: []tvg.rendering.Color8 = framebuffer.pixels;
+        const image_width: u32 = @intCast(framebuffer.width);
+        const image_height: u32 = @intCast(framebuffer.height);
+        defer _ = &framebuffer.deinit(core.allocator);
+
+        const img_size = core.gpu.Extent3D{ .width = image_width, .height = image_height };
+        core.queue.writeTexture(&.{ .texture = app.texture }, &app.texture_data_layout, &img_size, image_pixels);
+
+        std.debug.print("Redraw\n", .{});
     }
 
     // Get the current view
@@ -189,6 +230,7 @@ pub fn update(app: *App) !bool {
     // the GPUCommandBuffer into the parameter of a GPUQueue.submit() call.
     // https://developer.mozilla.org/en-US/docs/Web/API/GPUCommandBuffer
     const queue = core.queue;
+
     queue.submit(&[_]*core.gpu.CommandBuffer{gpu_command_buffer});
     gpu_command_buffer.release();
 
