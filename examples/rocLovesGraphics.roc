@@ -6,6 +6,8 @@ app "rocLovesGraphics"
     imports [
         pf.Types.{ Program, Init, Key, Event, Command },
         # json.Core.{ json },
+        # Encode.{Encoding}, 
+        # Decode.{Decoding},
     ]
     provides [main] to pf
 
@@ -25,17 +27,19 @@ init = \default ->
 
 Model : [Purple, Green, Blue]
 
-encodeModel : Model -> List U8
-encodeModel = \_ -> 
-    []
-# encodeModel = \model -> Encode.toBytes model json
+encodeModel : Model -> Str
+encodeModel = \_ -> ""
+# encodeModel = \model -> 
+#     when Encode.toBytes model json |> Str.fromUtf8 is 
+#         Ok encoded -> encoded
+#         Err _ -> crash "UNABLE TO ENCODE MODEL"
 
-decodeModel : List U8 -> Model
-decodeModel = \_ -> 
-    Purple
-    # when Decode.fromBytes bytes json is 
-    #     Ok model -> model
-    #     Err _ -> crash "UNABLE TO DECODE MODEL"
+decodeModel : Str -> Model
+decodeModel = \_ -> Purple
+# decodeModel = \encoded -> 
+#     when Decode.fromBytes (Str.toUtf8 encoded) json is 
+#         Ok decoded -> decoded
+#         Err _ -> crash "UNABLE TO DECODE MODEL"
     
 update : Event, Model -> (Command, Model)
 update = \event, model ->
@@ -44,7 +48,7 @@ update = \event, model ->
         KeyPress Space -> (Redraw, model)
         KeyPress Enter -> (NoOp, model)
 
-render : Model -> List U8
+render : Model -> Str
 render = \_ ->
     """
     (tvg 1
@@ -90,5 +94,4 @@ render = \_ ->
     )
     )
     """
-    |> Str.toUtf8
 

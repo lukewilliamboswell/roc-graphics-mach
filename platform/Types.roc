@@ -15,15 +15,15 @@ interface Types
 Program a : { 
     init : Init -> (Init, a), 
     update : Event, a -> (Command, a), 
-    render : a -> List U8,
-    encodeModel : a -> List U8,
-    decodeModel : List U8 -> a,
+    render : a -> Str,
+    encodeModel : a -> Str,
+    decodeModel : Str -> a,
 } where a implements Encoding & Decoding
 
 HostInterface : {
     action : Str,
-    command : List U8, 
-    model : List U8,
+    command : Str, 
+    model : Str,
 }
 
 Event : [KeyPress Key]

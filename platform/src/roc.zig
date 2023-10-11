@@ -97,25 +97,27 @@ const Allocator = mem.Allocator;
 extern fn roc__mainForHost_1_exposed_generic(*RocList, *RocList) void;
 
 pub fn roc_init(allocator: std.mem.Allocator) !core.Options {
+    // Create a host interface to send to Roc and convert it to a RocList
+    const toRocInterface = try HostInterface.fromSlice("{\"action\":\"INIT\",\"model\":\"\",\"command\":\"\"}", allocator);
+    const toRocList = try HostInterface.toList(toRocInterface, allocator);
 
     // Call into Roc
-    var argument = RocList.fromSlice(u8, "{\"action\":\"INIT\",\"model\":[],\"command\":\"\"}");
-    var callresult = RocList.empty();
-    // defer callresult.decref(0);
-    // defer argument.decref(0);
-    roc__mainForHost_1_exposed_generic(&callresult, &argument);
+    const callresult = RocList.empty();
+    roc__mainForHost_1_exposed_generic(@constCast(&callresult), @constCast(&toRocList));
 
-    // Parse the roc call result JSON
-    const fromRocBytes: []u8 = if (callresult.bytes) |bytes| bytes[0..callresult.length] else unreachable;
+    // Parse the callresult into a host interface
+    const fromRocInterface = try HostInterface.fromList(@constCast(&callresult), allocator);
 
-    // DEBUG PRINT ROC CALL RESULT
-    // std.debug.print("ROC GIVES-----\n{s}\n--------\n", .{fromRocBytes});
+    // DEBUG STUFF
+    std.debug.assert(mem.eql(u8, fromRocInterface.action, "INIT"));
+    // std.debug.print("ROC GIVES-----\n{any}\n--------\n", .{fromRocInterface});
 
-    const parsedData = try std.json.parseFromSlice(AppInitOptions, allocator, fromRocBytes, .{});
+    // Parse the AppInitOptions from a JSON string
+    const parsedData = try std.json.parseFromSlice(AppInitOptions, allocator, fromRocInterface.command, .{});
     defer parsedData.deinit();
 
-    // DEBUG PRINT PARSED DATA
-    // try stdout.print("JSON PARSED------\n{any}\n--------\n", .{parsedData.value});
+    // DEBUG STUFF
+    // std.debug.print("JSON PARSED------\n{any}\n--------\n", .{parsedData.value});
 
     // Set the display mode
     var display_mode: core.DisplayMode =
@@ -139,27 +141,33 @@ pub fn roc_init(allocator: std.mem.Allocator) !core.Options {
 
 pub fn roc_render(allocator: std.mem.Allocator) !tvg.rendering.Image {
 
-    // Call into Roc
-    var argument = RocList.fromSlice(u8, "{\"action\":\"REDRAW\",\"model\":[],\"command\":\"\"}");
-    var callresult = RocList.empty();
-    // defer callresult.decref(0);
-    // defer argument.decref(0);
-    roc__mainForHost_1_exposed_generic(&callresult, &argument);
+    // Create a host interface to send to Roc and convert it to a RocList
+    const toRocInterface = try HostInterface.fromSlice("{\"action\":\"REDRAW\",\"model\":\"\",\"command\":\"\"}", allocator);
+    const toRocList = try HostInterface.toList(toRocInterface, allocator);
 
-    // Parse the roc call result which should be TVG text format bytes
+    // Call into Roc
+    const callresult = RocList.empty();
+    roc__mainForHost_1_exposed_generic(@constCast(&callresult), @constCast(&toRocList));
+
+    // Parse the callresult into a host interface
+    const fromRocInterface = try HostInterface.fromList(@constCast(&callresult), allocator);
+
+    // DEBUG STUFF
+    std.debug.assert(mem.eql(u8, fromRocInterface.action, "REDRAW"));
+
+    // Parse the TVG text format bytes into a TVG binary format
     var intermediary_tvg = std.ArrayList(u8).init(allocator);
     defer intermediary_tvg.deinit();
-
-    const fromRocBytes: []u8 = if (callresult.bytes) |bytes| bytes[0..callresult.length] else unreachable;
-    try tvg.text.parse(allocator, fromRocBytes, intermediary_tvg.writer());
+    try tvg.text.parse(allocator, fromRocInterface.model, intermediary_tvg.writer());
 
     // Render TVG binary format into a framebuffer
     var stream = std.io.fixedBufferStream(intermediary_tvg.items);
+    // TODO let the user set these parameters
     var image = try tvg.rendering.renderStream(
         allocator,
         allocator,
         .inherit,
-        // ^^ Can also specify a size here...
+        // ^^ Can also specify a size here which improves the quality of the rendering at the cost of speed
         // tvg.rendering.SizeHint{ .size = tvg.rendering.Size{ .width = (1920 / 2), .height = (1080 / 2) } },
         .x1,
         // ^^ Can specify other anti aliasing modes .x4, .x9, .x16, .x25
@@ -180,34 +188,40 @@ pub const UpdateOp = enum {
     NoOp,
     Exit,
     Redraw,
+
+    fn fromSlice(source: []const u8) UpdateOp {
+        if (mem.eql(u8, source, "REDRAW")) {
+            return UpdateOp.Redraw;
+        } else if (mem.eql(u8, source, "EXIT")) {
+            return UpdateOp.Exit;
+        } else {
+            return UpdateOp.NoOp;
+        }
+    }
 };
 
-pub fn roc_update(event: UpdateEvent) UpdateOp {
+pub fn roc_update(event: UpdateEvent, allocator: std.mem.Allocator) !UpdateOp {
     const toRocBytes: []const u8 = switch (event) {
         .KeyPressSpace => "{\"action\":\"UPDATE\",\"model\":[],\"command\":\"KEYPRESS:SPACE\"}",
         .KeyPressEscape => "{\"action\":\"UPDATE\",\"model\":[],\"command\":\"KEYPRESS:ESCAPE\"}",
         .KeyPressEnter => "{\"action\":\"UPDATE\",\"model\":[],\"command\":\"KEYPRESS:ENTER\"}",
     };
 
+    // Create a host interface to send to Roc and convert it to a RocList
+    const toRocInterface: HostInterface = try HostInterface.fromSlice(toRocBytes, allocator);
+    const toRocList = try HostInterface.toList(toRocInterface, allocator);
+
     // Call into Roc
-    var argument = RocList.fromSlice(u8, toRocBytes);
-    var callresult = RocList.empty();
-    // defer callresult.decref(0);
-    // defer argument.decref(0);
-    roc__mainForHost_1_exposed_generic(&callresult, &argument);
+    const callresult = RocList.empty();
+    roc__mainForHost_1_exposed_generic(@constCast(&callresult), @constCast(&toRocList));
 
-    const fromRocBytes: []u8 = if (callresult.bytes) |bytes| bytes[0..callresult.length] else unreachable;
+    // Parse the callresult into a host interface
+    const fromRocInterface = try HostInterface.fromList(@constCast(&callresult), allocator);
 
-    // TODO parse and get the thing we want
-    const opStr = fromRocBytes;
+    // DEBUG STUFF
+    std.debug.assert(mem.eql(u8, fromRocInterface.action, "UPDATE"));
 
-    if (mem.eql(u8, opStr, "REDRAW")) {
-        return UpdateOp.Redraw;
-    } else if (mem.eql(u8, opStr, "EXIT")) {
-        return UpdateOp.Exit;
-    } else {
-        return UpdateOp.NoOp;
-    }
+    return UpdateOp.fromSlice(fromRocInterface.command);
 }
 
 fn addNullTermination(slice: []const u8) ![:0]const u8 {
@@ -225,4 +239,33 @@ const AppInitOptions = struct {
     title: []const u8,
     width: u32 = 800,
     height: u32 = 600,
+};
+
+const HostInterface = struct {
+    action: []const u8,
+    command: []const u8,
+    model: []const u8,
+
+    fn toList(hs: HostInterface, allocator: std.mem.Allocator) !RocList {
+        const interfaceBytes = try std.json.stringifyAlloc(allocator, hs, .{});
+
+        // DEBUG STUFF
+        // std.debug.print("\nFROM HOST INTERFACE TO ROC LIST {s}\n", .{interfaceBytes});
+
+        const hostInterfaceRocList = RocList.fromSlice(u8, interfaceBytes);
+
+        return hostInterfaceRocList;
+    }
+
+    fn fromList(interfaceRocList: *RocList, allocator: std.mem.Allocator) !HostInterface {
+        const interfaceBytes: []u8 = if (interfaceRocList.bytes) |bytes| bytes[0..interfaceRocList.length] else unreachable;
+        const parsed = try std.json.parseFromSlice(HostInterface, allocator, interfaceBytes, .{});
+
+        return parsed.value;
+    }
+
+    fn fromSlice(bytes: []const u8, allocator: std.mem.Allocator) !HostInterface {
+        const parsed = try std.json.parseFromSlice(HostInterface, allocator, bytes, .{});
+        return parsed.value;
+    }
 };

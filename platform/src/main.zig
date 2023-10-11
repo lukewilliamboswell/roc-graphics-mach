@@ -138,21 +138,24 @@ pub fn update(app: *App) !bool {
             .key_press => |ev| {
                 switch (ev.key) {
                     .space => {
-                        switch (roc.roc_update(roc.UpdateEvent.KeyPressSpace)) {
+                        const op = try roc.roc_update(roc.UpdateEvent.KeyPressSpace, core.allocator);
+                        switch (op) {
                             roc.UpdateOp.NoOp => {},
                             roc.UpdateOp.Exit => return true,
                             roc.UpdateOp.Redraw => redraw = true,
                         }
                     },
                     .enter => {
-                        switch (roc.roc_update(roc.UpdateEvent.KeyPressEnter)) {
+                        const op = try roc.roc_update(roc.UpdateEvent.KeyPressEnter, core.allocator);
+                        switch (op) {
                             roc.UpdateOp.NoOp => {},
                             roc.UpdateOp.Exit => return true,
                             roc.UpdateOp.Redraw => redraw = true,
                         }
                     },
                     .escape => {
-                        switch (roc.roc_update(roc.UpdateEvent.KeyPressEscape)) {
+                        const op = try roc.roc_update(roc.UpdateEvent.KeyPressEscape, core.allocator);
+                        switch (op) {
                             roc.UpdateOp.NoOp => {},
                             roc.UpdateOp.Exit => return true,
                             roc.UpdateOp.Redraw => redraw = true,

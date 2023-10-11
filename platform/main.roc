@@ -16,10 +16,15 @@ runProgram = \fromHost, program ->
         "INIT" -> 
             (command, initialModel) = defaultInit |> program.init 
 
+            init = 
+                when command |> Encode.toBytes json |> Str.fromUtf8 is 
+                    Ok a -> a
+                    Err _ -> crash "UNREACHABLE; INVALID UTF8 ENCODING INIT"
+                
             toHost : HostInterface
             toHost = {
                 action: "INIT",
-                command: Encode.toBytes command json,
+                command: init,
                 model: program.encodeModel initialModel,
             }
 
@@ -27,8 +32,7 @@ runProgram = \fromHost, program ->
 
         "UPDATE" -> 
 
-            event = when toEventFromHost fromHost.command is 
-                Err InvalidUtf8 -> crash "INVALID UTF8 EVENT FROM HOST"
+            event = when toEventFromStr fromHost.command is 
                 Err UnsupportedCommmand -> crash "UNSUPPORTED COMMAND FROM HOST"
                 Ok e -> e
 
@@ -39,7 +43,7 @@ runProgram = \fromHost, program ->
             toHost : HostInterface
             toHost = {
                 action: "UPDATE",
-                command: toBytesFromCommand command,
+                command: toStrFromCommand command,
                 model: program.encodeModel updatedModel,
             }
 
@@ -54,7 +58,7 @@ runProgram = \fromHost, program ->
             toHost : HostInterface
             toHost = {
                 action: "REDRAW",
-                command: [],
+                command: "",
                 model: tvgtBytes,
             }
 
@@ -64,6 +68,8 @@ runProgram = \fromHost, program ->
 
 mainForHost : List U8 -> List U8
 mainForHost = \fromHostBytes ->
+    # DEBUG FROM HOST CALL
+    # crash (Str.fromUtf8 fromHostBytes |> Result.withDefault "BAD UTF8 FROM HOST")
 
     decoded : Result HostInterface [Leftover (List U8), TooShort]
     decoded = Decode.fromBytes fromHostBytes json
@@ -72,24 +78,20 @@ mainForHost = \fromHostBytes ->
         Err _ -> crash "ERROR DECODING FROM HOST"
         Ok fromHost -> runProgram fromHost main
 
-toEventFromHost : List U8 -> Result Event [InvalidUtf8, UnsupportedCommmand]
-toEventFromHost = \cmdBytes ->
-    cmdBytes
-    |> Str.fromUtf8
-    |> Result.mapErr \_ -> InvalidUtf8
-    |> Result.try \cmd -> 
-        when cmd is
-            "KEYPRESS:ESCAPE" -> Ok (KeyPress Escape)
-            "KEYPRESS:SPACE" -> Ok (KeyPress Space)
-            "KEYPRESS:ENTER" -> Ok (KeyPress Enter)
-            _ -> Err UnsupportedCommmand
-
-toBytesFromCommand : Command -> List U8
-toBytesFromCommand = \cmd -> 
+toEventFromStr : Str -> Result Event [UnsupportedCommmand]
+toEventFromStr = \cmd ->
     when cmd is
-        Redraw -> "REDRAW" |> Str.toUtf8
-        Exit -> "EXIT" |> Str.toUtf8
-        NoOp -> "NOOP" |> Str.toUtf8
+        "KEYPRESS:ESCAPE" -> Ok (KeyPress Escape)
+        "KEYPRESS:SPACE" -> Ok (KeyPress Space)
+        "KEYPRESS:ENTER" -> Ok (KeyPress Enter)
+        _ -> Err UnsupportedCommmand
+
+toStrFromCommand : Command -> Str
+toStrFromCommand = \cmd -> 
+    when cmd is
+        Redraw -> "REDRAW"
+        Exit -> "EXIT"
+        NoOp -> "NOOP"
 
 defaultInit : Init
 defaultInit = {
