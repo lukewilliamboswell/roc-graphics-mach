@@ -1,9 +1,11 @@
 const std = @import("std");
 const builtin = @import("builtin");
+const list = @import("builtins/bitcode/src/glue.zig").list;
 const str = @import("builtins/bitcode/src/glue.zig").str;
 const core = @import("mach-core");
 const tvg = @import("tinyvg");
 const zigimg = @import("zigimg");
+const RocList = list.RocList;
 const RocStr = str.RocStr;
 const testing = std.testing;
 const expectEqual = testing.expectEqual;
@@ -46,12 +48,10 @@ export fn roc_dealloc(c_ptr: *anyopaque, alignment: u32) callconv(.C) void {
     free(@as([*]align(Align) u8, @alignCast(@ptrCast(c_ptr))));
 }
 
-export fn roc_panic(c_ptr: *anyopaque, tag_id: u32) callconv(.C) void {
-    _ = tag_id;
-
+export fn roc_panic(msg: *RocStr, tag_id: u32) callconv(.C) void {
     const stderr = std.io.getStdErr().writer();
-    const msg = @as([*:0]const u8, @ptrCast(c_ptr));
-    stderr.print("Roc application crashed with message\n\n    {s}\n\nShutting down\n", .{msg}) catch unreachable;
+    // const msg = @as([*:0]const u8, @ptrCast(c_ptr));
+    stderr.print("\n\nRoc crashed with the following error;\nMSG:{s}\nTAG:{d}\n\nShutting down\n", .{ msg.asSlice(), tag_id }) catch unreachable;
     std.process.exit(0);
 }
 
@@ -94,22 +94,24 @@ comptime {
 const mem = std.mem;
 const Allocator = mem.Allocator;
 
-extern fn roc__mainForHost_1_exposed_generic(*RocStr, *RocStr) void;
+extern fn roc__mainForHost_1_exposed_generic(*RocList, *RocList) void;
 
 pub fn roc_init(allocator: std.mem.Allocator) !core.Options {
 
     // Call into Roc
-    var argument = RocStr.fromSlice("INIT");
-    var callresult = RocStr.empty();
-    defer callresult.decref();
-    defer argument.decref();
+    var argument = RocList.fromSlice(u8, "{\"action\":\"INIT\",\"model\":[],\"command\":\"\"}");
+    var callresult = RocList.empty();
+    // defer callresult.decref(0);
+    // defer argument.decref(0);
     roc__mainForHost_1_exposed_generic(&callresult, &argument);
 
-    // DEBUG PRINT ROC CALL RESULT
-    // try stdout.print("ROC GIVES-----\n{s}\n--------\n", .{callresult.asSlice()});
-
     // Parse the roc call result JSON
-    const parsedData = try std.json.parseFromSlice(AppInitOptions, allocator, callresult.asSlice(), .{});
+    const fromRocBytes: []u8 = if (callresult.bytes) |bytes| bytes[0..callresult.length] else unreachable;
+
+    // DEBUG PRINT ROC CALL RESULT
+    // std.debug.print("ROC GIVES-----\n{s}\n--------\n", .{fromRocBytes});
+
+    const parsedData = try std.json.parseFromSlice(AppInitOptions, allocator, fromRocBytes, .{});
     defer parsedData.deinit();
 
     // DEBUG PRINT PARSED DATA
@@ -138,16 +140,18 @@ pub fn roc_init(allocator: std.mem.Allocator) !core.Options {
 pub fn roc_render(allocator: std.mem.Allocator) !tvg.rendering.Image {
 
     // Call into Roc
-    var argument = RocStr.fromSlice("RENDER");
-    var callresult = RocStr.empty();
-    defer callresult.decref();
-    defer argument.decref();
+    var argument = RocList.fromSlice(u8, "{\"action\":\"REDRAW\",\"model\":[],\"command\":\"\"}");
+    var callresult = RocList.empty();
+    // defer callresult.decref(0);
+    // defer argument.decref(0);
     roc__mainForHost_1_exposed_generic(&callresult, &argument);
 
     // Parse the roc call result which should be TVG text format bytes
     var intermediary_tvg = std.ArrayList(u8).init(allocator);
     defer intermediary_tvg.deinit();
-    try tvg.text.parse(allocator, callresult.asSlice(), intermediary_tvg.writer());
+
+    const fromRocBytes: []u8 = if (callresult.bytes) |bytes| bytes[0..callresult.length] else unreachable;
+    try tvg.text.parse(allocator, fromRocBytes, intermediary_tvg.writer());
 
     // Render TVG binary format into a framebuffer
     var stream = std.io.fixedBufferStream(intermediary_tvg.items);
@@ -179,20 +183,23 @@ pub const UpdateOp = enum {
 };
 
 pub fn roc_update(event: UpdateEvent) UpdateOp {
-    const command: []const u8 = switch (event) {
-        .KeyPressSpace => "UPDATE:KEYPRESS:SPACE",
-        .KeyPressEscape => "UPDATE:KEYPRESS:ESCAPE",
-        .KeyPressEnter => "UPDATE:KEYPRESS:ENTER",
+    const toRocBytes: []const u8 = switch (event) {
+        .KeyPressSpace => "{\"action\":\"UPDATE\",\"model\":[],\"command\":\"KEYPRESS:SPACE\"}",
+        .KeyPressEscape => "{\"action\":\"UPDATE\",\"model\":[],\"command\":\"KEYPRESS:ESCAPE\"}",
+        .KeyPressEnter => "{\"action\":\"UPDATE\",\"model\":[],\"command\":\"KEYPRESS:ENTER\"}",
     };
 
     // Call into Roc
-    var argument = RocStr.fromSlice(command);
-    var callresult = RocStr.empty();
-    defer callresult.decref();
-    defer argument.decref();
+    var argument = RocList.fromSlice(u8, toRocBytes);
+    var callresult = RocList.empty();
+    // defer callresult.decref(0);
+    // defer argument.decref(0);
     roc__mainForHost_1_exposed_generic(&callresult, &argument);
 
-    const opStr = callresult.asSlice();
+    const fromRocBytes: []u8 = if (callresult.bytes) |bytes| bytes[0..callresult.length] else unreachable;
+
+    // TODO parse and get the thing we want
+    const opStr = fromRocBytes;
 
     if (mem.eql(u8, opStr, "REDRAW")) {
         return UpdateOp.Redraw;

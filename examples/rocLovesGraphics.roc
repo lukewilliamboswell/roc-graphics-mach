@@ -1,25 +1,51 @@
 app "rocLovesGraphics"
-    packages { 
+    packages {
         pf: "../platform/main.roc",
+        # json: "https://github.com/lukewilliamboswell/roc-json/releases/download/v0.3.0/y2bZ-J_3aq28q0NpZPjw0NC6wghUYFooJpH03XzJ3Ls.tar.br",
     }
     imports [
-        pf.Event.{ Key },
+        pf.Types.{ Program, Init, Key, Event, Command },
+        # json.Core.{ json },
     ]
     provides [main] to pf
 
-main = {init, update, render}
+main : Program Model
+main = 
+    { 
+        init, 
+        update, 
+        render, 
+        encodeModel,
+        decodeModel,  
+    }
 
-init = \default -> { default & title: "Roc 💜 Graphics", width: 200, height: 200 }
+init : Init -> (Init, Model)
+init = \default -> 
+    ({ default & title: "Roc 💜 Graphics", width: 200, height: 200 }, Purple)
 
-update : [KeyPress Key] -> [NoOp, Exit, Redraw]
-update = \event ->
-    when event is 
-        KeyPress Escape -> Exit
-        KeyPress Space -> Redraw
-        KeyPress Enter -> NoOp
+Model : [Purple, Green, Blue]
 
-render : Str
-render = 
+encodeModel : Model -> List U8
+encodeModel = \_ -> 
+    []
+# encodeModel = \model -> Encode.toBytes model json
+
+decodeModel : List U8 -> Model
+decodeModel = \_ -> 
+    Purple
+    # when Decode.fromBytes bytes json is 
+    #     Ok model -> model
+    #     Err _ -> crash "UNABLE TO DECODE MODEL"
+    
+update : Event, Model -> (Command, Model)
+update = \event, model ->
+    when event is
+        KeyPress Escape -> (Exit, model)
+        KeyPress Space -> (Redraw, model)
+        KeyPress Enter -> (NoOp, model)
+
+render : Model -> List U8
+render = \_ ->
     """
     (tvg 1
     (100 100 1/1 u8888 default)
@@ -64,7 +90,5 @@ render =
     )
     )
     """
+    |> Str.toUtf8
 
-
-    
-    

@@ -2,7 +2,7 @@
 
 # Ensure that the user has provided a path to the Roc app
 if [ "$#" -ne 1 ]; then
-    echo "Usage: $0 rovLovesGraphics.roc"
+    echo "Usage: $0 exapmples/rovLovesGraphics.roc"
     exit 1
 fi
 
