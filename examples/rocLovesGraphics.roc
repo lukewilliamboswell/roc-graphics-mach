@@ -11,6 +11,8 @@ app "rocLovesGraphics"
     ]
     provides [main] to pf
 
+Model : [Purple, Green, Blue]
+
 main : Program Model
 main = 
     { 
@@ -24,8 +26,6 @@ main =
 init : Init -> (Init, Model)
 init = \default -> 
     ({ default & title: "Roc 💜 Graphics", width: 200, height: 200 }, Purple)
-
-Model : [Purple, Green, Blue]
 
 encodeModel : Model -> Str
 encodeModel = \model -> 
@@ -49,6 +49,13 @@ nextModel = \current ->
         Green -> Blue
         Blue -> Purple
     
+colorToRGB888 : Model -> Str
+colorToRGB888 = \model ->
+    when model is
+        Purple -> "0.486 0.220 0.961 1.000"
+        Green -> "0.220 0.961 0.486 1.000"
+        Blue -> "0.961 0.486 0.220 1.000"
+
 update : Event, Model -> (Command, Model)
 update = \event, model ->
     when event is
@@ -57,13 +64,13 @@ update = \event, model ->
         KeyPress Enter -> (NoOp, nextModel model)
 
 render : Model -> Str
-render = \_ ->
+render = \model ->
     """
     (tvg 1
     (100 100 1/1 u8888 default)
     (
         (1.000 1.000 1.000 1.000)
-        (0.486 0.220 0.961 1.000)
+        (\(colorToRGB888 model))
     )
     (
         (
