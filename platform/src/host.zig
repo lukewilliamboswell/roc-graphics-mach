@@ -22,6 +22,8 @@ pub fn main() !void {
     // Initialize GPU implementation
     core.gpu.Impl.init();
 
+    std.log.info("STARTING APP\n", .{});
+
     var app: App = undefined;
     try app.init();
     defer app.deinit();

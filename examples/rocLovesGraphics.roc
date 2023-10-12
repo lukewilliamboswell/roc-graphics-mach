@@ -28,25 +28,33 @@ init = \default ->
 Model : [Purple, Green, Blue]
 
 encodeModel : Model -> Str
-encodeModel = \_ -> ""
-# encodeModel = \model -> 
-#     when Encode.toBytes model json |> Str.fromUtf8 is 
-#         Ok encoded -> encoded
-#         Err _ -> crash "UNABLE TO ENCODE MODEL"
+encodeModel = \model -> 
+    when model is 
+        Purple -> "Purple"
+        Green -> "Green"
+        Blue -> "Blue"
 
 decodeModel : Str -> Model
-decodeModel = \_ -> Purple
-# decodeModel = \encoded -> 
-#     when Decode.fromBytes (Str.toUtf8 encoded) json is 
-#         Ok decoded -> decoded
-#         Err _ -> crash "UNABLE TO DECODE MODEL"
+decodeModel = \encoded -> 
+    when encoded is 
+        "Purple" -> Purple
+        "Green" -> Green
+        "Blue" -> Blue
+        _ -> crash "UNABLE TO DECODE MODEL, GOT:\(encoded)"
+
+nextModel : Model -> Model
+nextModel = \current ->
+    when current is
+        Purple -> Green
+        Green -> Blue
+        Blue -> Purple
     
 update : Event, Model -> (Command, Model)
 update = \event, model ->
     when event is
-        KeyPress Escape -> (Exit, model)
-        KeyPress Space -> (Redraw, model)
-        KeyPress Enter -> (NoOp, model)
+        KeyPress Escape -> (Exit, nextModel model)
+        KeyPress Space -> (Redraw, nextModel model)
+        KeyPress Enter -> (NoOp, nextModel model)
 
 render : Model -> Str
 render = \_ ->

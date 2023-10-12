@@ -14,13 +14,13 @@ runProgram : HostInterface, Program a -> List U8
 runProgram = \fromHost, program ->
     when fromHost.action is
         "INIT" -> 
-            (init, initialModel) = defaultInit |> program.init 
+            (initOptions, initModel) = defaultInit |> program.init 
 
             toHost : ToHostInit
             toHost = {
                 action: "INIT",
-                command: init,
-                model: program.encodeModel initialModel,
+                command: initOptions,
+                model: program.encodeModel initModel,
             }
 
             Encode.toBytes toHost json

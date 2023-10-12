@@ -136,6 +136,8 @@ pub fn roc_init(allocator: std.mem.Allocator) !InitResult {
 
     std.debug.assert(mem.eql(u8, fromRocInterface.value.action, "INIT"));
 
+    // std.log.info("INSIDE ROC INIT MODEL:{s}\n", .{fromRocInterface.value.model});
+
     // Set the display mode
     var display_mode: core.DisplayMode =
         if (mem.eql(u8, fromRocInterface.value.command.displayMode, "borderless"))
@@ -153,7 +155,11 @@ pub fn roc_init(allocator: std.mem.Allocator) !InitResult {
         .size = core.Size{ .width = fromRocInterface.value.command.width, .height = fromRocInterface.value.command.height },
     };
 
-    return InitResult{ .options = options, .model = fromRocInterface.value.model };
+    // Allocate and copy the model bytes to keep these bytes alive
+    const model = try allocator.alloc(u8, fromRocInterface.value.model.len);
+    @memcpy(model.ptr, fromRocInterface.value.model);
+
+    return InitResult{ .options = options, .model = model };
 }
 
 const RenderFromRoc = struct {
@@ -162,13 +168,21 @@ const RenderFromRoc = struct {
     model: []const u8,
 };
 
-pub fn roc_render(allocator: std.mem.Allocator) !tvg.rendering.Image {
+pub fn roc_render(allocator: std.mem.Allocator, model: []const u8) !tvg.rendering.Image {
     var heap_arena_allocator = std.heap.ArenaAllocator.init(allocator);
     const heap_allocator = heap_arena_allocator.allocator();
     defer heap_arena_allocator.deinit();
 
+    const argBytes = try std.fmt.allocPrint(allocator, "{s}{s}{s}", .{
+        "{\"action\":\"REDRAW\",\"model\":\"",
+        model,
+        "\",\"command\":\"\"}",
+    });
+
+    // std.log.info("RENDER ARG BYTES {s}", .{argBytes});
+
     // Create a host interface to send to Roc and convert it to a RocList
-    var argument: RocList = RocList.fromSlice(u8, "{\"action\":\"REDRAW\",\"model\":\"\",\"command\":\"\"}");
+    var argument: RocList = RocList.fromSlice(u8, argBytes);
 
     // Call into Roc
     var callresult: RocList = RocList.empty();
@@ -239,19 +253,27 @@ const UpdateResult = struct {
     model: []const u8,
 };
 
-pub fn roc_update(event: UpdateEvent, allocator: std.mem.Allocator) !UpdateResult {
+pub fn roc_update(event: UpdateEvent, model: []const u8, allocator: std.mem.Allocator) !UpdateResult {
     var heap_arena_allocator = std.heap.ArenaAllocator.init(allocator);
     const heap_allocator = heap_arena_allocator.allocator();
     defer heap_arena_allocator.deinit();
 
-    const toRocBytes: []const u8 = switch (event) {
-        .KeyPressSpace => "{\"action\":\"UPDATE\",\"model\":\"\",\"command\":\"KEYPRESS:SPACE\"}",
-        .KeyPressEscape => "{\"action\":\"UPDATE\",\"model\":\"\",\"command\":\"KEYPRESS:ESCAPE\"}",
-        .KeyPressEnter => "{\"action\":\"UPDATE\",\"model\":\"\",\"command\":\"KEYPRESS:ENTER\"}",
+    const commandBytes = switch (event) {
+        .KeyPressSpace => "\",\"command\":\"KEYPRESS:SPACE\"}",
+        .KeyPressEscape => "\",\"command\":\"KEYPRESS:ESCAPE\"}",
+        .KeyPressEnter => "\",\"command\":\"KEYPRESS:ENTER\"}",
     };
 
+    const argBytes = try std.fmt.allocPrint(allocator, "{s}{s}{s}", .{
+        "{\"action\":\"UPDATE\",\"model\":\"",
+        model,
+        commandBytes,
+    });
+
+    std.log.info("UPDATE ARG BYTES {s}", .{argBytes});
+
     // Create a host interface to send to Roc and convert it to a RocList
-    var argument: RocList = RocList.fromSlice(u8, toRocBytes);
+    var argument: RocList = RocList.fromSlice(u8, argBytes);
 
     // Call into Roc
     var callresult: RocList = RocList.empty();
@@ -266,9 +288,13 @@ pub fn roc_update(event: UpdateEvent, allocator: std.mem.Allocator) !UpdateResul
 
     std.debug.assert(mem.eql(u8, fromRocInterface.value.action, "UPDATE"));
 
+    // Allocate and copy the model bytes to keep these bytes alive
+    const updatedModel = try allocator.alloc(u8, fromRocInterface.value.model.len);
+    @memcpy(updatedModel.ptr, fromRocInterface.value.model);
+
     return UpdateResult{
         .op = UpdateOp.fromSlice(fromRocInterface.value.command),
-        .model = fromRocInterface.value.model,
+        .model = updatedModel,
     };
 }
 

@@ -10,7 +10,8 @@ texture: *core.gpu.Texture,
 texture_data_layout: core.gpu.Texture.DataLayout,
 show_result_bind_group: *core.gpu.BindGroup,
 img_size: core.gpu.Extent3D,
-model: []const u8,
+
+var model: []const u8 = undefined;
 
 pub const App = @This();
 
@@ -24,13 +25,16 @@ pub fn init(app: *App) !void {
     // Call Roc to get initial parameters from Init
     const initResult = try roc.roc_init(allocator);
 
-    app.model = initResult.model;
+    // std.log.info("INIT RESULT: {any}\n", .{initResult});
+
+    // Copy the model bytes into the model buffer
+    model = initResult.model;
 
     // Initialize the mach-core library
     try core.init(initResult.options);
 
     // Call Roc to get the TVG text bytes from Render
-    var framebuffer = try roc.roc_render(allocator);
+    var framebuffer = try roc.roc_render(allocator, model);
     const image_pixels: []tvg.rendering.Color8 = framebuffer.pixels;
     const image_width: u32 = @intCast(framebuffer.width);
     const image_height: u32 = @intCast(framebuffer.height);
@@ -135,14 +139,17 @@ pub fn update(app: *App) !bool {
     while (iter.next()) |event| {
 
         // DEBUG PRINT EVENT
-        // std.debug.print("Event: {any}\n", .{event});
+        // std.debug.print("HANDLE EVENT: {any}, Model: {any}\n", .{ event, model });
 
         switch (event) {
             .key_press => |ev| {
                 switch (ev.key) {
                     .space => {
-                        const updateResult = try roc.roc_update(roc.UpdateEvent.KeyPressSpace, core.allocator);
-                        app.model = updateResult.model;
+                        const updateResult = try roc.roc_update(roc.UpdateEvent.KeyPressSpace, model, core.allocator);
+
+                        // Copy the model bytes into the model buffer
+                        model = updateResult.model;
+
                         switch (updateResult.op) {
                             roc.UpdateOp.NoOp => {},
                             roc.UpdateOp.Exit => return true,
@@ -150,8 +157,11 @@ pub fn update(app: *App) !bool {
                         }
                     },
                     .enter => {
-                        const updateResult = try roc.roc_update(roc.UpdateEvent.KeyPressEnter, core.allocator);
-                        app.model = updateResult.model;
+                        const updateResult = try roc.roc_update(roc.UpdateEvent.KeyPressEnter, model, core.allocator);
+
+                        // Copy the model bytes into the model buffer
+                        model = updateResult.model;
+
                         switch (updateResult.op) {
                             roc.UpdateOp.NoOp => {},
                             roc.UpdateOp.Exit => return true,
@@ -159,8 +169,11 @@ pub fn update(app: *App) !bool {
                         }
                     },
                     .escape => {
-                        const updateResult = try roc.roc_update(roc.UpdateEvent.KeyPressEscape, core.allocator);
-                        app.model = updateResult.model;
+                        const updateResult = try roc.roc_update(roc.UpdateEvent.KeyPressEscape, model, core.allocator);
+
+                        // Copy the model bytes into the model buffer
+                        model = updateResult.model;
+
                         switch (updateResult.op) {
                             roc.UpdateOp.NoOp => {},
                             roc.UpdateOp.Exit => return true,
@@ -189,8 +202,10 @@ pub fn update(app: *App) !bool {
     }
 
     if (redraw) {
+        // std.log.info("REDRAW Model: {any}\n", .{model});
+
         // Call Roc to get the TVG text bytes from Render
-        var framebuffer = try roc.roc_render(core.allocator);
+        var framebuffer = try roc.roc_render(core.allocator, model);
         const image_pixels: []tvg.rendering.Color8 = framebuffer.pixels;
         const image_width: u32 = @intCast(framebuffer.width);
         const image_height: u32 = @intCast(framebuffer.height);
@@ -198,8 +213,6 @@ pub fn update(app: *App) !bool {
 
         const img_size = core.gpu.Extent3D{ .width = image_width, .height = image_height };
         core.queue.writeTexture(&.{ .texture = app.texture }, &app.texture_data_layout, &img_size, image_pixels);
-
-        std.debug.print("Redraw\n", .{});
     }
 
     // Get the current view
