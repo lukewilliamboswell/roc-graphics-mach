@@ -96,34 +96,51 @@ const Allocator = mem.Allocator;
 
 extern fn roc__mainForHost_1_exposed_generic(*RocList, *RocList) void;
 
-pub fn roc_init(allocator: std.mem.Allocator) !core.Options {
+const AppInitOptions = struct {
+    displayMode: []const u8, // 20 windowed, 21 fullscreen, 22 borderless
+    border: bool = true,
+    title: []const u8,
+    width: u32 = 800,
+    height: u32 = 600,
+};
+
+const InitFromRoc = struct {
+    action: []const u8,
+    command: AppInitOptions,
+    model: []const u8,
+};
+
+const InitResult = struct {
+    options: core.Options,
+    model: []const u8,
+};
+
+pub fn roc_init(allocator: std.mem.Allocator) !InitResult {
+    var heap_arena_allocator = std.heap.ArenaAllocator.init(allocator);
+    const heap_allocator = heap_arena_allocator.allocator();
+    defer heap_arena_allocator.deinit();
+
     // Create a host interface to send to Roc and convert it to a RocList
-    const toRocInterface = try HostInterface.fromSlice("{\"action\":\"INIT\",\"model\":\"\",\"command\":\"\"}", allocator);
-    const toRocList = try HostInterface.toList(toRocInterface, allocator);
+    var argument: RocList = RocList.fromSlice(u8, "{\"action\":\"INIT\",\"model\":\"\",\"command\":\"\"}");
 
     // Call into Roc
-    const callresult = RocList.empty();
-    roc__mainForHost_1_exposed_generic(@constCast(&callresult), @constCast(&toRocList));
+    var callresult: RocList = RocList.empty();
+    defer callresult.decref(0);
+
+    roc__mainForHost_1_exposed_generic(@constCast(&callresult), @constCast(&argument));
 
     // Parse the callresult into a host interface
-    const fromRocInterface = try HostInterface.fromList(@constCast(&callresult), allocator);
+    const callresultBytes: []u8 = if (callresult.bytes) |bytes| bytes[0..callresult.length] else unreachable;
+    var fromRocInterface = try std.json.parseFromSlice(InitFromRoc, heap_allocator, callresultBytes, .{});
+    defer fromRocInterface.deinit();
 
-    // DEBUG STUFF
-    std.debug.assert(mem.eql(u8, fromRocInterface.action, "INIT"));
-    // std.debug.print("ROC GIVES-----\n{any}\n--------\n", .{fromRocInterface});
-
-    // Parse the AppInitOptions from a JSON string
-    const parsedData = try std.json.parseFromSlice(AppInitOptions, allocator, fromRocInterface.command, .{});
-    defer parsedData.deinit();
-
-    // DEBUG STUFF
-    // std.debug.print("JSON PARSED------\n{any}\n--------\n", .{parsedData.value});
+    std.debug.assert(mem.eql(u8, fromRocInterface.value.action, "INIT"));
 
     // Set the display mode
     var display_mode: core.DisplayMode =
-        if (mem.eql(u8, parsedData.value.displayMode, "borderless"))
+        if (mem.eql(u8, fromRocInterface.value.command.displayMode, "borderless"))
         core.DisplayMode.borderless
-    else if (mem.eql(u8, parsedData.value.displayMode, "fullscreen"))
+    else if (mem.eql(u8, fromRocInterface.value.command.displayMode, "fullscreen"))
         core.DisplayMode.fullscreen
     else
         core.DisplayMode.windowed;
@@ -131,34 +148,45 @@ pub fn roc_init(allocator: std.mem.Allocator) !core.Options {
     // Create options to configure mach-core library
     const options = core.Options{
         .display_mode = display_mode,
-        .border = parsedData.value.border,
-        .title = try addNullTermination(parsedData.value.title),
-        .size = core.Size{ .width = parsedData.value.width, .height = parsedData.value.height },
+        .border = fromRocInterface.value.command.border,
+        .title = try addNullTermination(fromRocInterface.value.command.title),
+        .size = core.Size{ .width = fromRocInterface.value.command.width, .height = fromRocInterface.value.command.height },
     };
 
-    return options;
+    return InitResult{ .options = options, .model = fromRocInterface.value.model };
 }
 
+const RenderFromRoc = struct {
+    action: []const u8,
+    command: []const u8,
+    model: []const u8,
+};
+
 pub fn roc_render(allocator: std.mem.Allocator) !tvg.rendering.Image {
+    var heap_arena_allocator = std.heap.ArenaAllocator.init(allocator);
+    const heap_allocator = heap_arena_allocator.allocator();
+    defer heap_arena_allocator.deinit();
 
     // Create a host interface to send to Roc and convert it to a RocList
-    const toRocInterface = try HostInterface.fromSlice("{\"action\":\"REDRAW\",\"model\":\"\",\"command\":\"\"}", allocator);
-    const toRocList = try HostInterface.toList(toRocInterface, allocator);
+    var argument: RocList = RocList.fromSlice(u8, "{\"action\":\"REDRAW\",\"model\":\"\",\"command\":\"\"}");
 
     // Call into Roc
-    const callresult = RocList.empty();
-    roc__mainForHost_1_exposed_generic(@constCast(&callresult), @constCast(&toRocList));
+    var callresult: RocList = RocList.empty();
+    defer callresult.decref(0);
+
+    roc__mainForHost_1_exposed_generic(@constCast(&callresult), @constCast(&argument));
 
     // Parse the callresult into a host interface
-    const fromRocInterface = try HostInterface.fromList(@constCast(&callresult), allocator);
+    const callresultBytes: []u8 = if (callresult.bytes) |bytes| bytes[0..callresult.length] else unreachable;
+    var fromRocInterface = try std.json.parseFromSlice(RenderFromRoc, heap_allocator, callresultBytes, .{});
+    defer fromRocInterface.deinit();
 
-    // DEBUG STUFF
-    std.debug.assert(mem.eql(u8, fromRocInterface.action, "REDRAW"));
+    std.debug.assert(mem.eql(u8, fromRocInterface.value.action, "REDRAW"));
 
     // Parse the TVG text format bytes into a TVG binary format
-    var intermediary_tvg = std.ArrayList(u8).init(allocator);
+    var intermediary_tvg = std.ArrayList(u8).init(heap_allocator);
     defer intermediary_tvg.deinit();
-    try tvg.text.parse(allocator, fromRocInterface.model, intermediary_tvg.writer());
+    try tvg.text.parse(heap_allocator, fromRocInterface.value.model, intermediary_tvg.writer());
 
     // Render TVG binary format into a framebuffer
     var stream = std.io.fixedBufferStream(intermediary_tvg.items);
@@ -200,28 +228,48 @@ pub const UpdateOp = enum {
     }
 };
 
-pub fn roc_update(event: UpdateEvent, allocator: std.mem.Allocator) !UpdateOp {
+const UpdateFromRoc = struct {
+    action: []const u8,
+    command: []const u8,
+    model: []const u8,
+};
+
+const UpdateResult = struct {
+    op: UpdateOp,
+    model: []const u8,
+};
+
+pub fn roc_update(event: UpdateEvent, allocator: std.mem.Allocator) !UpdateResult {
+    var heap_arena_allocator = std.heap.ArenaAllocator.init(allocator);
+    const heap_allocator = heap_arena_allocator.allocator();
+    defer heap_arena_allocator.deinit();
+
     const toRocBytes: []const u8 = switch (event) {
-        .KeyPressSpace => "{\"action\":\"UPDATE\",\"model\":[],\"command\":\"KEYPRESS:SPACE\"}",
-        .KeyPressEscape => "{\"action\":\"UPDATE\",\"model\":[],\"command\":\"KEYPRESS:ESCAPE\"}",
-        .KeyPressEnter => "{\"action\":\"UPDATE\",\"model\":[],\"command\":\"KEYPRESS:ENTER\"}",
+        .KeyPressSpace => "{\"action\":\"UPDATE\",\"model\":\"\",\"command\":\"KEYPRESS:SPACE\"}",
+        .KeyPressEscape => "{\"action\":\"UPDATE\",\"model\":\"\",\"command\":\"KEYPRESS:ESCAPE\"}",
+        .KeyPressEnter => "{\"action\":\"UPDATE\",\"model\":\"\",\"command\":\"KEYPRESS:ENTER\"}",
     };
 
     // Create a host interface to send to Roc and convert it to a RocList
-    const toRocInterface: HostInterface = try HostInterface.fromSlice(toRocBytes, allocator);
-    const toRocList = try HostInterface.toList(toRocInterface, allocator);
+    var argument: RocList = RocList.fromSlice(u8, toRocBytes);
 
     // Call into Roc
-    const callresult = RocList.empty();
-    roc__mainForHost_1_exposed_generic(@constCast(&callresult), @constCast(&toRocList));
+    var callresult: RocList = RocList.empty();
+    defer callresult.decref(0);
+
+    roc__mainForHost_1_exposed_generic(@constCast(&callresult), @constCast(&argument));
 
     // Parse the callresult into a host interface
-    const fromRocInterface = try HostInterface.fromList(@constCast(&callresult), allocator);
+    const callresultBytes: []u8 = if (callresult.bytes) |bytes| bytes[0..callresult.length] else unreachable;
+    var fromRocInterface = try std.json.parseFromSlice(UpdateFromRoc, heap_allocator, callresultBytes, .{});
+    defer fromRocInterface.deinit();
 
-    // DEBUG STUFF
-    std.debug.assert(mem.eql(u8, fromRocInterface.action, "UPDATE"));
+    std.debug.assert(mem.eql(u8, fromRocInterface.value.action, "UPDATE"));
 
-    return UpdateOp.fromSlice(fromRocInterface.command);
+    return UpdateResult{
+        .op = UpdateOp.fromSlice(fromRocInterface.value.command),
+        .model = fromRocInterface.value.model,
+    };
 }
 
 fn addNullTermination(slice: []const u8) ![:0]const u8 {
@@ -232,40 +280,3 @@ fn addNullTermination(slice: []const u8) ![:0]const u8 {
     result[slice.len] = 0; // Add null termination
     return result[0..slice.len :0];
 }
-
-const AppInitOptions = struct {
-    displayMode: []const u8, // 20 windowed, 21 fullscreen, 22 borderless
-    border: bool = true,
-    title: []const u8,
-    width: u32 = 800,
-    height: u32 = 600,
-};
-
-const HostInterface = struct {
-    action: []const u8,
-    command: []const u8,
-    model: []const u8,
-
-    fn toList(hs: HostInterface, allocator: std.mem.Allocator) !RocList {
-        const interfaceBytes = try std.json.stringifyAlloc(allocator, hs, .{});
-
-        // DEBUG STUFF
-        // std.debug.print("\nFROM HOST INTERFACE TO ROC LIST {s}\n", .{interfaceBytes});
-
-        const hostInterfaceRocList = RocList.fromSlice(u8, interfaceBytes);
-
-        return hostInterfaceRocList;
-    }
-
-    fn fromList(interfaceRocList: *RocList, allocator: std.mem.Allocator) !HostInterface {
-        const interfaceBytes: []u8 = if (interfaceRocList.bytes) |bytes| bytes[0..interfaceRocList.length] else unreachable;
-        const parsed = try std.json.parseFromSlice(HostInterface, allocator, interfaceBytes, .{});
-
-        return parsed.value;
-    }
-
-    fn fromSlice(bytes: []const u8, allocator: std.mem.Allocator) !HostInterface {
-        const parsed = try std.json.parseFromSlice(HostInterface, allocator, bytes, .{});
-        return parsed.value;
-    }
-};

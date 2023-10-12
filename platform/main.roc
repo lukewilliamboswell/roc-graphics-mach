@@ -4,7 +4,7 @@ platform "roc-graphics"
     packages {}
     imports [
         Json.{ json },
-        Types.{ Program, HostInterface, Key, Init, Event, Command },
+        Types.{ Program, HostInterface, Key, Init, Event, Command, ToHostInit },
         Encode.{Encoding}, 
         Decode.{Decoding},
     ]
@@ -14,14 +14,9 @@ runProgram : HostInterface, Program a -> List U8
 runProgram = \fromHost, program ->
     when fromHost.action is
         "INIT" -> 
-            (command, initialModel) = defaultInit |> program.init 
+            (init, initialModel) = defaultInit |> program.init 
 
-            init = 
-                when command |> Encode.toBytes json |> Str.fromUtf8 is 
-                    Ok a -> a
-                    Err _ -> crash "UNREACHABLE; INVALID UTF8 ENCODING INIT"
-                
-            toHost : HostInterface
+            toHost : ToHostInit
             toHost = {
                 action: "INIT",
                 command: init,

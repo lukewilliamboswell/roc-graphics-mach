@@ -6,6 +6,7 @@ interface Types
         Init,
         Event,
         Command,
+        ToHostInit,
     ]
     imports [
         Encode.{Encoding}, 
@@ -23,6 +24,12 @@ Program a : {
 HostInterface : {
     action : Str,
     command : Str, 
+    model : Str,
+}
+
+ToHostInit : {
+    action : Str,
+    command : Init, 
     model : Str,
 }
 

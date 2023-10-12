@@ -10,6 +10,7 @@ texture: *core.gpu.Texture,
 texture_data_layout: core.gpu.Texture.DataLayout,
 show_result_bind_group: *core.gpu.BindGroup,
 img_size: core.gpu.Extent3D,
+model: []const u8,
 
 pub const App = @This();
 
@@ -21,10 +22,12 @@ pub fn init(app: *App) !void {
     const allocator = gpa.allocator();
 
     // Call Roc to get initial parameters from Init
-    const options = try roc.roc_init(allocator);
+    const initResult = try roc.roc_init(allocator);
+
+    app.model = initResult.model;
 
     // Initialize the mach-core library
-    try core.init(options);
+    try core.init(initResult.options);
 
     // Call Roc to get the TVG text bytes from Render
     var framebuffer = try roc.roc_render(allocator);
@@ -138,24 +141,27 @@ pub fn update(app: *App) !bool {
             .key_press => |ev| {
                 switch (ev.key) {
                     .space => {
-                        const op = try roc.roc_update(roc.UpdateEvent.KeyPressSpace, core.allocator);
-                        switch (op) {
+                        const updateResult = try roc.roc_update(roc.UpdateEvent.KeyPressSpace, core.allocator);
+                        app.model = updateResult.model;
+                        switch (updateResult.op) {
                             roc.UpdateOp.NoOp => {},
                             roc.UpdateOp.Exit => return true,
                             roc.UpdateOp.Redraw => redraw = true,
                         }
                     },
                     .enter => {
-                        const op = try roc.roc_update(roc.UpdateEvent.KeyPressEnter, core.allocator);
-                        switch (op) {
+                        const updateResult = try roc.roc_update(roc.UpdateEvent.KeyPressEnter, core.allocator);
+                        app.model = updateResult.model;
+                        switch (updateResult.op) {
                             roc.UpdateOp.NoOp => {},
                             roc.UpdateOp.Exit => return true,
                             roc.UpdateOp.Redraw => redraw = true,
                         }
                     },
                     .escape => {
-                        const op = try roc.roc_update(roc.UpdateEvent.KeyPressEscape, core.allocator);
-                        switch (op) {
+                        const updateResult = try roc.roc_update(roc.UpdateEvent.KeyPressEscape, core.allocator);
+                        app.model = updateResult.model;
+                        switch (updateResult.op) {
                             roc.UpdateOp.NoOp => {},
                             roc.UpdateOp.Exit => return true,
                             roc.UpdateOp.Redraw => redraw = true,
