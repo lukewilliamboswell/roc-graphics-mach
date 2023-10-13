@@ -16,18 +16,15 @@ var model: []const u8 = undefined;
 pub const App = @This();
 
 var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+var allocator = gpa.allocator();
 
 pub fn init(app: *App) !void {
-
-    // Get an allocator
-    const allocator = gpa.allocator();
 
     // Call Roc to get initial parameters from Init
     const initResult = try roc.roc_init(allocator);
 
     // std.log.info("INIT RESULT: {any}\n", .{initResult});
 
-    // Copy the model bytes into the model buffer
     model = initResult.model;
 
     // Initialize the mach-core library
@@ -127,6 +124,10 @@ pub fn init(app: *App) !void {
 
 pub fn deinit(app: *App) void {
     _ = app;
+
+    // Dont forget to free the current model when exiting
+    allocator.free(model);
+
     defer _ = gpa.deinit();
     defer core.deinit();
 }
@@ -138,16 +139,16 @@ pub fn update(app: *App) !bool {
     var iter = core.pollEvents();
     while (iter.next()) |event| {
 
-        // DEBUG PRINT EVENT
         // std.debug.print("HANDLE EVENT: {any}, Model: {any}\n", .{ event, model });
 
         switch (event) {
             .key_press => |ev| {
                 switch (ev.key) {
                     .space => {
-                        const updateResult = try roc.roc_update(roc.UpdateEvent.KeyPressSpace, model, core.allocator);
+                        const updateResult = try roc.roc_update(roc.UpdateEvent.KeyPressSpace, model, allocator);
 
                         // Copy the model bytes into the model buffer
+                        allocator.free(model);
                         model = updateResult.model;
 
                         switch (updateResult.op) {
@@ -157,9 +158,10 @@ pub fn update(app: *App) !bool {
                         }
                     },
                     .enter => {
-                        const updateResult = try roc.roc_update(roc.UpdateEvent.KeyPressEnter, model, core.allocator);
+                        const updateResult = try roc.roc_update(roc.UpdateEvent.KeyPressEnter, model, allocator);
 
                         // Copy the model bytes into the model buffer
+                        allocator.free(model);
                         model = updateResult.model;
 
                         switch (updateResult.op) {
@@ -169,9 +171,10 @@ pub fn update(app: *App) !bool {
                         }
                     },
                     .escape => {
-                        const updateResult = try roc.roc_update(roc.UpdateEvent.KeyPressEscape, model, core.allocator);
+                        const updateResult = try roc.roc_update(roc.UpdateEvent.KeyPressEscape, model, allocator);
 
                         // Copy the model bytes into the model buffer
+                        allocator.free(model);
                         model = updateResult.model;
 
                         switch (updateResult.op) {
@@ -205,11 +208,11 @@ pub fn update(app: *App) !bool {
         // std.log.info("REDRAW Model: {any}\n", .{model});
 
         // Call Roc to get the TVG text bytes from Render
-        var framebuffer = try roc.roc_render(core.allocator, model);
+        var framebuffer = try roc.roc_render(allocator, model);
         const image_pixels: []tvg.rendering.Color8 = framebuffer.pixels;
         const image_width: u32 = @intCast(framebuffer.width);
         const image_height: u32 = @intCast(framebuffer.height);
-        defer _ = &framebuffer.deinit(core.allocator);
+        defer _ = &framebuffer.deinit(allocator);
 
         const img_size = core.gpu.Extent3D{ .width = image_width, .height = image_height };
         core.queue.writeTexture(&.{ .texture = app.texture }, &app.texture_data_layout, &img_size, image_pixels);

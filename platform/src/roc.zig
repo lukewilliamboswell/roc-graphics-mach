@@ -173,7 +173,7 @@ pub fn roc_render(allocator: std.mem.Allocator, model: []const u8) !tvg.renderin
     const heap_allocator = heap_arena_allocator.allocator();
     defer heap_arena_allocator.deinit();
 
-    const argBytes = try std.fmt.allocPrint(allocator, "{s}{s}{s}", .{
+    const argBytes = try std.fmt.allocPrint(heap_allocator, "{s}{s}{s}", .{
         "{\"action\":\"REDRAW\",\"model\":\"",
         model,
         "\",\"command\":\"\"}",
@@ -264,13 +264,13 @@ pub fn roc_update(event: UpdateEvent, model: []const u8, allocator: std.mem.Allo
         .KeyPressEnter => "\",\"command\":\"KEYPRESS:ENTER\"}",
     };
 
-    const argBytes = try std.fmt.allocPrint(allocator, "{s}{s}{s}", .{
+    const argBytes = try std.fmt.allocPrint(heap_allocator, "{s}{s}{s}", .{
         "{\"action\":\"UPDATE\",\"model\":\"",
         model,
         commandBytes,
     });
 
-    std.log.info("UPDATE ARG BYTES {s}", .{argBytes});
+    // std.log.info("UPDATE ARG BYTES {s}", .{argBytes});
 
     // Create a host interface to send to Roc and convert it to a RocList
     var argument: RocList = RocList.fromSlice(u8, argBytes);
