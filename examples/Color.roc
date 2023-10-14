@@ -14,17 +14,7 @@ interface Color
 Color := [RGBA8888 U8 U8 U8 U8] implements [Eq { isEq: isEq }]
 
 isEq : Color, Color -> Bool
-isEq = \@Color first, @Color second ->
-
-    (r1, g1, b1, a1) = 
-        when first is 
-            RGBA8888 r g b a -> (r, g, b, a)
-
-    (r2, g2, b2, a2) = 
-        when second is 
-            RGBA8888 r g b a -> (r, g, b, a)
-
-    (r1 == r2) && (g1 == g2) && (b1 == b2) && (a1 == a2)
+isEq = \@Color first, @Color second -> first == second
 
 ColorEncoding : [RGBA8888]
 
