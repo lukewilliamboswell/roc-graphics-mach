@@ -4,8 +4,8 @@ app "rocLovesGraphics"
     }
     imports [
         pf.Types.{ Program, Init, Key, Event, Command },
-        Color.{ Color, Basic },
-        TinyVG,
+        TinyVG.Color.{ Color, Basic },
+        TinyVG.Graphic,
     ]
     provides [main] to pf
 
@@ -24,10 +24,10 @@ main =
 Model : Basic
 
 encodeModel : Model -> Str
-encodeModel = \basic -> basic |> Color.basicToStr
+encodeModel = \basic -> basic |> TinyVG.Color.basicToStr
 
 decodeModel : Str -> Model
-decodeModel = \str -> str |> Color.basicFromStr |> Result.withDefault Purple
+decodeModel = \str -> str |> TinyVG.Color.basicFromStr |> Result.withDefault Purple
 
 # Let's cycle through all the basic colors 🎉
 nextModel : Model -> Model
@@ -68,10 +68,10 @@ update = \event, model ->
 
 render : Model -> Str
 render = \model ->
-    TinyVG.graphic {}
-    |> TinyVG.addColor (Color.fromBasic White)
-    |> TinyVG.addColor (Color.fromBasic model)
-    |> TinyVG.toStr 
+    TinyVG.Graphic.graphic {}
+    |> TinyVG.Graphic.addColor (TinyVG.Color.fromBasic White)
+    |> TinyVG.Graphic.addColor (TinyVG.Color.fromBasic model)
+    |> TinyVG.Graphic.toStr 
         """
 
         (

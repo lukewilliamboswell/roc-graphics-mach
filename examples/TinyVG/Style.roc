@@ -1,4 +1,4 @@
-interface Style
+interface TinyVG.Style
     exposes [
         Style,
         flat,
@@ -7,7 +7,7 @@ interface Style
         toTvgt,
     ]
     imports [
-        ColorIndex.{ColorIndex}
+        TinyVG.ColorIndex.{ColorIndex}
     ]
 
 Style := 

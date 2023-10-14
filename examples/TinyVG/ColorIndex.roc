@@ -1,4 +1,4 @@
-interface ColorIndex
+interface TinyVG.ColorIndex
     exposes [
         ColorIndex,
         fromU32,

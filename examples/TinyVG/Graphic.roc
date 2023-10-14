@@ -1,4 +1,4 @@
-interface TinyVG
+interface TinyVG.Graphic
     exposes [
         Graphic,
         graphic,
@@ -7,7 +7,7 @@ interface TinyVG
         addColor,
     ]
     imports [
-        Color.{Color, ColorEncoding},
+        TinyVG.Color.{Color, ColorEncoding},
     ]
 
 # Each Unit takes up 8/16/32 bits
@@ -87,14 +87,14 @@ colorTableToStr = \@Graphic data ->
     
     tvgtColors = 
         data.colorTable 
-        |> List.map \c -> Color.toTvgt c data.format
+        |> List.map \c -> TinyVG.Color.toTvgt c data.format
         |> Str.joinWith ""
 
     "(\(tvgtColors))"
 
 expect 
     graphic {} 
-    |> addColor (Color.fromBasic White)
-    |> addColor (Color.fromBasic Purple)
+    |> addColor (TinyVG.Color.fromBasic White)
+    |> addColor (TinyVG.Color.fromBasic Purple)
     |> colorTableToStr
     == "((1.0 1.0 1.0 1.0)(0.49 0.0 1.0 1.0))"

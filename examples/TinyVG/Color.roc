@@ -1,4 +1,4 @@
-interface Color
+interface TinyVG.Color
     exposes [
         Color,
         ColorEncoding,
