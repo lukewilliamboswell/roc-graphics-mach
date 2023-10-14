@@ -2,7 +2,7 @@ interface Color
     exposes [
         Color,
         ColorEncoding,
-        toTgvt,
+        toTvgt,
         Basic,
         fromBasic,
         basicToStr,
@@ -18,8 +18,8 @@ isEq = \@Color first, @Color second -> first == second
 
 ColorEncoding : [RGBA8888]
 
-toTgvt : Color, ColorEncoding -> Str
-toTgvt = \@Color c, _ -> 
+toTvgt : Color, ColorEncoding -> Str
+toTvgt = \@Color c, _ -> 
     # TODO use ColorEncoding
     when c is 
         RGBA8888 r g b a -> "(\(u8ToTvgt r) \(u8ToTvgt g) \(u8ToTvgt b) \(u8ToTvgt a))"
@@ -65,7 +65,7 @@ truncateFrac = \frac ->
 
 expect truncateFrac "0.498039215686274509" == "0.49"
 
-expect (@Color (RGBA8888 0 255 0 255)) |> toTgvt RGBA8888 == "(0.0 1.0 0.0 1.0)"
+expect (@Color (RGBA8888 0 255 0 255)) |> toTvgt RGBA8888 == "(0.0 1.0 0.0 1.0)"
 
 Basic : [
     Red,
