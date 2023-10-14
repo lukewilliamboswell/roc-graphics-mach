@@ -131,12 +131,13 @@ pub fn roc_init(allocator: std.mem.Allocator) !InitResult {
 
     // Parse the callresult into a host interface
     const callresultBytes: []u8 = if (callresult.bytes) |bytes| bytes[0..callresult.length] else unreachable;
+
+    // std.log.info("INIT CALL RESULT:{s}\n", .{callresultBytes});
+
     var fromRocInterface = try std.json.parseFromSlice(InitFromRoc, heap_allocator, callresultBytes, .{});
     defer fromRocInterface.deinit();
 
     std.debug.assert(mem.eql(u8, fromRocInterface.value.action, "INIT"));
-
-    // std.log.info("INSIDE ROC INIT MODEL:{s}\n", .{fromRocInterface.value.model});
 
     // Set the display mode
     var display_mode: core.DisplayMode =
@@ -192,6 +193,9 @@ pub fn roc_render(allocator: std.mem.Allocator, model: []const u8) !tvg.renderin
 
     // Parse the callresult into a host interface
     const callresultBytes: []u8 = if (callresult.bytes) |bytes| bytes[0..callresult.length] else unreachable;
+
+    // std.log.info("RENDER CALL RESULT:{s}\n", .{callresultBytes});
+
     var fromRocInterface = try std.json.parseFromSlice(RenderFromRoc, heap_allocator, callresultBytes, .{});
     defer fromRocInterface.deinit();
 

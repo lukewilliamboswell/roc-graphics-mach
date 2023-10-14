@@ -1,14 +1,12 @@
 interface TinyVG
     exposes []
-    imports []
+    imports [
+        Color.{Color},
+    ]
 
 
 # Each Unit takes up 8/16/32 bits
 Precision : [Default, Reduced, Enhanced]
-
-ColorEncoding : [RGBA8888, RGB565, RGBAF32]
-
-Color : [RGBA8888 U8 U8 U8 U8]
 
 Graphic := {
     width : U16,
@@ -27,7 +25,7 @@ new : {
     precision ? Precision,
 } -> Graphic
 new = \{width ? 100, height ? 100, scale ? 1, format ? RGBA8888, precision ? Default} ->
-    @Graphic {width, height, scale, format, precision}
+    @Graphic {width, height, scale, format, precision, colorTable: []}
 
 headerToStr : Graphic -> Str
 headerToStr = \@Graphic {width, height, scale, format, precision} ->
@@ -65,13 +63,8 @@ headerToStr = \@Graphic {width, height, scale, format, precision} ->
 # Test header is correct for default values 
 expect headerToStr (new {}) == "(100 100 1/1 u8888 default)"
 
-# toStr : Graphic -> Str
-# toStr = \@Graphic {state} ->
-
-#     "100 100 1/1 u8888 default"
-
 colorTableToStr : Graphic -> Str
-colorTableToStr \ @Graphic {colorTable} ->
+colorTableToStr = \@Graphic {colorTable} ->
     colorTable
     |> List.map Color.toStr
-    |> Str.joinWith " "
+    |> Str.joinWith "\n"

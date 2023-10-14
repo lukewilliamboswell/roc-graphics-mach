@@ -1,17 +1,12 @@
 app "rocLovesGraphics"
     packages {
         pf: "../platform/main.roc",
-        # json: "https://github.com/lukewilliamboswell/roc-json/releases/download/v0.3.0/y2bZ-J_3aq28q0NpZPjw0NC6wghUYFooJpH03XzJ3Ls.tar.br",
     }
     imports [
         pf.Types.{ Program, Init, Key, Event, Command },
-        # json.Core.{ json },
-        # Encode.{Encoding}, 
-        # Decode.{Decoding},
+        Color.{ Color, Basic }
     ]
     provides [main] to pf
-
-Model : [Purple, Green, Blue]
 
 main : Program Model
 main = 
@@ -23,38 +18,43 @@ main =
         decodeModel,  
     }
 
+# MODEL
+
+Model : Basic
+
+encodeModel : Model -> Str
+encodeModel = \basic -> basic |> Color.basicToStr
+
+decodeModel : Str -> Model
+decodeModel = \str -> str |> Color.basicFromStr |> Result.withDefault Purple
+
+# Let's cycle through all the basic colors 🎉
+nextModel : Model -> Model
+nextModel = \current ->
+    when current is
+        Red -> Gray
+        Orange -> Red
+        Yellow -> Orange
+        Lime -> Yellow
+        Green -> Lime
+        Sea -> Green
+        Cyan -> Sea
+        Sky -> Cyan
+        Blue -> Sky
+        Purple -> Blue
+        Magenta -> Purple
+        Pink -> Magenta
+        White -> Pink
+        Black -> White
+        Gray -> Black
+
+# INIT
+
 init : Init -> (Init, Model)
 init = \default -> 
     ({ default & title: "Roc 💜 Graphics", width: 200, height: 200 }, Purple)
 
-encodeModel : Model -> Str
-encodeModel = \model -> 
-    when model is 
-        Purple -> "Purple"
-        Green -> "Green"
-        Blue -> "Blue"
-
-decodeModel : Str -> Model
-decodeModel = \encoded -> 
-    when encoded is 
-        "Purple" -> Purple
-        "Green" -> Green
-        "Blue" -> Blue
-        _ -> crash "UNABLE TO DECODE MODEL, GOT:\(encoded)"
-
-nextModel : Model -> Model
-nextModel = \current ->
-    when current is
-        Purple -> Green
-        Green -> Blue
-        Blue -> Purple
-    
-colorToRGB888 : Model -> Str
-colorToRGB888 = \model ->
-    when model is
-        Purple -> "0.486 0.220 0.961 1.000"
-        Green -> "0.220 0.961 0.486 1.000"
-        Blue -> "0.961 0.486 0.220 1.000"
+# UPDATE 
 
 update : Event, Model -> (Command, Model)
 update = \event, model ->
@@ -63,6 +63,8 @@ update = \event, model ->
         KeyPress Space -> (Redraw, nextModel model)
         KeyPress Enter -> (NoOp, nextModel model)
 
+# RENDER
+
 render : Model -> Str
 render = \model ->
     """
@@ -70,7 +72,7 @@ render = \model ->
     (100 100 1/1 u8888 default)
     (
         (1.000 1.000 1.000 1.000)
-        (\(colorToRGB888 model))
+        \(model |> Color.fromBasic |> Color.toTgvt RGBA8888)
     )
     (
         (
