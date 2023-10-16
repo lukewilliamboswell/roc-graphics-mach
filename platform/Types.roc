@@ -19,7 +19,7 @@ Program a : {
     render : a -> Str,
     encodeModel : a -> Str,
     decodeModel : Str -> a,
-} where a implements Encoding & Decoding
+}
 
 HostInterface : {
     action : Str,
