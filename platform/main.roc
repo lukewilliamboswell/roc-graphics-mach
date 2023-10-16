@@ -79,6 +79,11 @@ toEventFromStr = \cmd ->
         "KEYPRESS:ESCAPE" -> Ok (KeyPress Escape)
         "KEYPRESS:SPACE" -> Ok (KeyPress Space)
         "KEYPRESS:ENTER" -> Ok (KeyPress Enter)
+        "KEYPRESS:UP" -> Ok (KeyPress Up)
+        "KEYPRESS:DOWN" -> Ok (KeyPress Down)
+        "KEYPRESS:LEFT" -> Ok (KeyPress Left)
+        "KEYPRESS:RIGHT" -> Ok (KeyPress Right)
+        "TICK" -> Ok Tick
         _ -> Err UnsupportedCommmand
 
 toStrFromCommand : Command -> Str

@@ -5,6 +5,7 @@ const zigimg = @import("zigimg");
 const roc = @import("roc.zig");
 
 title_timer: core.Timer,
+tick_timer: core.Timer,
 fullscreen_quad_pipeline: *core.gpu.RenderPipeline,
 texture: *core.gpu.Texture,
 texture_data_layout: core.gpu.Texture.DataLayout,
@@ -115,6 +116,7 @@ pub fn init(app: *App) !void {
     }));
 
     app.title_timer = try core.Timer.start();
+    app.tick_timer = try core.Timer.start();
     app.fullscreen_quad_pipeline = fullscreen_quad_pipeline;
     app.texture = texture;
     app.texture_data_layout = texture_data_layout;
@@ -183,10 +185,58 @@ pub fn update(app: *App) !bool {
                             roc.UpdateOp.Redraw => redraw = true,
                         }
                     },
-                    // .left => app.direction[0] += 1,
-                    // .right => app.direction[0] -= 1,
-                    // .up => app.direction[1] += 1,
-                    // .down => app.direction[1] -= 1,
+                    .left => {
+                        const updateResult = try roc.roc_update(roc.UpdateEvent.KeyPressLeft, model, allocator);
+
+                        // Copy the model bytes into the model buffer
+                        allocator.free(model);
+                        model = updateResult.model;
+
+                        switch (updateResult.op) {
+                            roc.UpdateOp.NoOp => {},
+                            roc.UpdateOp.Exit => return true,
+                            roc.UpdateOp.Redraw => redraw = true,
+                        }
+                    },
+                    .right => {
+                        const updateResult = try roc.roc_update(roc.UpdateEvent.KeyPressRight, model, allocator);
+
+                        // Copy the model bytes into the model buffer
+                        allocator.free(model);
+                        model = updateResult.model;
+
+                        switch (updateResult.op) {
+                            roc.UpdateOp.NoOp => {},
+                            roc.UpdateOp.Exit => return true,
+                            roc.UpdateOp.Redraw => redraw = true,
+                        }
+                    },
+                    .up => {
+                        const updateResult = try roc.roc_update(roc.UpdateEvent.KeyPressUp, model, allocator);
+
+                        // Copy the model bytes into the model buffer
+                        allocator.free(model);
+                        model = updateResult.model;
+
+                        switch (updateResult.op) {
+                            roc.UpdateOp.NoOp => {},
+                            roc.UpdateOp.Exit => return true,
+                            roc.UpdateOp.Redraw => redraw = true,
+                        }
+                    },
+                    .down => {
+                        const updateResult = try roc.roc_update(roc.UpdateEvent.KeyPressDown, model, allocator);
+
+                        // Copy the model bytes into the model buffer
+                        allocator.free(model);
+                        model = updateResult.model;
+
+                        switch (updateResult.op) {
+                            roc.UpdateOp.NoOp => {},
+                            roc.UpdateOp.Exit => return true,
+                            roc.UpdateOp.Redraw => redraw = true,
+                        }
+                    },
                     else => {},
                 }
             },
@@ -201,6 +251,23 @@ pub fn update(app: *App) !bool {
             },
             .close => return true,
             else => {},
+        }
+    }
+
+    // Check for Tick Event
+    if (app.tick_timer.readPrecise() >= 1_000_000_000) {
+        app.tick_timer.reset();
+
+        const updateResult = try roc.roc_update(roc.UpdateEvent.Tick, model, allocator);
+
+        // Copy the model bytes into the model buffer
+        allocator.free(model);
+        model = updateResult.model;
+
+        switch (updateResult.op) {
+            roc.UpdateOp.NoOp => {},
+            roc.UpdateOp.Exit => return true,
+            roc.UpdateOp.Redraw => redraw = true,
         }
     }
 

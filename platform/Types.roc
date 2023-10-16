@@ -33,7 +33,10 @@ ToHostInit : {
     model : Str,
 }
 
-Event : [KeyPress Key]
+Event : [
+    KeyPress Key,
+    Tick,
+]
 
 Command : [NoOp, Exit, Redraw]
 
@@ -49,4 +52,8 @@ Key : [
     Escape,
     Space,
     Enter,
+    Up,
+    Down,
+    Left,
+    Right,
 ]

@@ -15,14 +15,7 @@ app "rocLovesGraphics"
     provides [main] to pf
 
 main : Program Model
-main = 
-    { 
-        init, 
-        update, 
-        render, 
-        encodeModel,
-        decodeModel,  
-    }
+main = { init, update, render, encodeModel, decodeModel }
 
 # MODEL
 
@@ -67,7 +60,8 @@ update = \event, model ->
     when event is
         KeyPress Escape -> (Exit, nextModel model)
         KeyPress Space -> (Redraw, nextModel model)
-        KeyPress Enter -> (NoOp, nextModel model)
+        Tick -> (Redraw, nextModel model)
+        _ -> (NoOp, model)
 
 # RENDER
 

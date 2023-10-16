@@ -228,6 +228,11 @@ pub const UpdateEvent = enum {
     KeyPressSpace,
     KeyPressEscape,
     KeyPressEnter,
+    KeyPressUp,
+    KeyPressDown,
+    KeyPressLeft,
+    KeyPressRight,
+    Tick,
 };
 
 pub const UpdateOp = enum {
@@ -266,6 +271,11 @@ pub fn roc_update(event: UpdateEvent, model: []const u8, allocator: std.mem.Allo
         .KeyPressSpace => "\",\"command\":\"KEYPRESS:SPACE\"}",
         .KeyPressEscape => "\",\"command\":\"KEYPRESS:ESCAPE\"}",
         .KeyPressEnter => "\",\"command\":\"KEYPRESS:ENTER\"}",
+        .KeyPressUp => "\",\"command\":\"KEYPRESS:UP\"}",
+        .KeyPressDown => "\",\"command\":\"KEYPRESS:DOWN\"}",
+        .KeyPressLeft => "\",\"command\":\"KEYPRESS:LEFT\"}",
+        .KeyPressRight => "\",\"command\":\"KEYPRESS:RIGHT\"}",
+        .Tick => "\",\"command\":\"TICK\"}",
     };
 
     const argBytes = try std.fmt.allocPrint(heap_allocator, "{s}{s}{s}", .{
