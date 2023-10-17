@@ -1,7 +1,7 @@
 app "rocLovesGraphics"
     packages {
         pf: "../platform/main.roc",
-        tvg: "https://github.com/lukewilliamboswell/roc-tinvyvg/releases/download/testing/-P6_oNEDWFP8Cz4yyutR4oERy-qE8x4i4Xe2TdMD1a0.tar.br",
+        tvg: "https://github.com/lukewilliamboswell/roc-tinvyvg/releases/download/0.2/ZyZBFnr3PEd5fWq70Z6w2ASK7bSxarh8Wj2Xq7o7IUE.tar.br",
     }
     imports [
         pf.Types.{ Program, Init, Key, Event, Command },
@@ -107,8 +107,8 @@ render : Model -> Str
 render = \model ->
     graphic : Graphic
     graphic =
-        g1, bgColor <- Graphic.addColor (Graphic.graphic {}) (Color.fromBasic model.background)
-        g2, birdColor <- Graphic.addColor g1 (Color.fromBasic model.bird)
+        g1, bgColor <- Graphic.applyColor (Graphic.graphic {}) (Color.fromBasic model.background)
+        g2, birdColor <- Graphic.applyColor g1 (Color.fromBasic model.bird)
 
         # Draws the white square background
         whiteSquare = Command.fillPath (Style.flat bgColor) { x: 0, y: 0 } [
@@ -137,4 +137,4 @@ render = \model ->
         |> Graphic.addCommand whiteSquare
         |> Graphic.addCommand rocBird
 
-    graphic |> Graphic.toStr
+    graphic |> Graphic.toText
